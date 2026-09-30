@@ -1,5 +1,6 @@
 ﻿import streamlit as st
 import pandas as pd
+import io
 from collections import defaultdict
 
 # =============================================================================
@@ -13,14 +14,14 @@ APP_OPTIONS = [
         "desc": "返回主控制台首页"
     },
     {
-        "name": " 选项 1：报告书百分比转文字", 
-        "tags": ["#报告书", "#数据处理", "#Excel"], 
-        "desc": "上传 Excel 表格数据并生成带有缩进的描述 TXT 文本"
+        "name": " 选项 2：疾控月报表", 
+        "tags": ["#月报表", "#疾控"], 
+        "desc": "上传Excel表格，转化为表2-1 3-1的内容"
     },
     {
-        "name": " 选项 2：听力数据计算", 
-        "tags": ["#听力", "#体检计算", "#规则"], 
-        "desc": "听力阈值提取、年龄修正与禁忌判定"
+        "name": " 选项 1：报告书百分比转文字", 
+        "tags": ["#报告书", "#百分比"], 
+        "desc": "上传Excel表格，百分比表格转化为文字描述"
     },
     {
         "name": " 选项 3：快捷报告审核", 
@@ -177,9 +178,110 @@ elif menu_choice == " 选项 1：报告书百分比转文字":
             st.error(f"处理文件时出错，请检查 Excel 列名！具体错误信息: {e}")
 
 # --- 选项 2 界面 ---
-elif menu_choice == " 选项 2：听力数据计算":
-    st.title("🎧 选项 2：听力阈值计算与判定")
-    st.info("这里放置听力年龄修正与禁忌自动判定计算逻辑。")
+elif menu_choice == " 选项 2：疾控月报表":
+    st.title("📊 选项 2：疾控月报表自动统计")
+    st.write("请上传包含【用工单位名称】和【体检危害因素名称】的 Excel 文件：")
+    
+    uploaded_file = st.file_uploader("点击或拖入上传 Excel 文件", type=["xlsx", "xls"], key="cdc_upload")
+    
+    if uploaded_file is not None:
+        try:
+            df = pd.read_excel(uploaded_file)
+            df = df.dropna(subset=['用工单位名称', '体检危害因素名称'])
+            
+            # 显示读取成功提示
+            unit_count = len(df['用工单位名称'].unique())
+            st.success(f"✅ 文件读取成功！共检测到 {unit_count} 个单位，点击下方按钮下载统计报表。")
+            
+            # 核心函数：分析单人危害因素
+            def analyze_person_hazards(hazard_str):
+                if pd.isna(hazard_str) or not str(hazard_str).strip():
+                    return {}
+                raw_str = str(hazard_str).replace('，', ',').replace(' ', ',').replace('、', ',')
+                factors = [f.strip() for f in raw_str.split(',') if f.strip()]
+                
+                categories = {k: 0 for k in [
+                    "全因素", "矽尘", "煤尘", "石棉粉尘", "水泥粉尘", 
+                    "电焊烟尘", "其他粉尘", "苯", "铅", "其他化学因素", 
+                    "噪声", "其他物理因素", "布鲁氏菌", "其他生物因素"
+                ]}
+                categories["全因素"] = 1
+                has_other_chem = False
+                
+                for factor in factors:
+                    if "矽尘" in factor: categories["矽尘"] = 1
+                    elif "煤尘" in factor: categories["煤尘"] = 1
+                    elif "石棉" in factor and "尘" in factor: categories["石棉粉尘"] = 1
+                    elif "水泥" in factor and "尘" in factor: categories["水泥粉尘"] = 1
+                    elif "电焊烟尘" in factor: categories["电焊烟尘"] = 1
+                    elif "尘" in factor: categories["其他粉尘"] = 1
+                    elif any(p in factor for p in ["手传振动", "高温", "紫外", "高气压", "微波", "低温", "激光", "工频"]): categories["其他物理因素"] = 1
+                    elif "噪声" in factor: categories["噪声"] = 1
+                    elif "布鲁氏菌" in factor: categories["布鲁氏菌"] = 1
+                    elif "生物" in factor: categories["其他生物因素"] = 1
+                    elif any(s in factor for s in ["高处作业", "电工作业", "焊接", "空间", "驾驶", "特殊作业"]): pass
+                    else:
+                        if factor == "苯" or ("苯" in factor and "甲苯" not in factor and "二甲苯" not in factor): categories["苯"] = 1
+                        elif "铅" in factor and "四乙基铅" not in factor: categories["铅"] = 1
+                        elif not any(ex in factor for ex in ["甲苯", "二甲苯"]): has_other_chem = True
+                
+                if has_other_chem:
+                    categories["其他化学因素"] = 1
+                return categories
+
+            # 用于存储所有行数据的列表
+            output_data = []
+            
+            # 核心函数：向表格数据中追加单个单位的统计块
+            def add_table_to_data(temp_df, title):
+                # 写入单位名称（不再使用 ===）
+                output_data.append({"危害因素": title, "接触职业病危害因素人数": ""})
+                output_data.append({"危害因素": "危害因素", "接触职业病危害因素人数": "接触职业病危害因素人数"})
+                
+                totals = {k: 0 for k in [
+                    "全因素", "矽尘", "煤尘", "石棉粉尘", "水泥粉尘", 
+                    "电焊烟尘", "其他粉尘", "苯", "铅", "其他化学因素", 
+                    "噪声", "其他物理因素", "布鲁氏菌", "其他生物因素"
+                ]}
+                
+                for hazard_item in temp_df['体检危害因素名称']:
+                    person_res = analyze_person_hazards(hazard_item)
+                    for key, val in person_res.items():
+                        totals[key] += val
+                        
+                for key, count in totals.items():
+                    output_data.append({"危害因素": key, "接触职业病危害因素人数": count})
+                
+                # 追加一个空行隔开不同单位
+                output_data.append({"危害因素": "", "接触职业病危害因素人数": ""})
+            
+            # 1. 统计总表
+            add_table_to_data(df, "1-3 表格：全因素汇总表")
+            
+            # 2. 分别统计各单位
+            units = df['用工单位名称'].unique()
+            for unit in units:
+                unit_df = df[df['用工单位名称'] == unit]
+                add_table_to_data(unit_df, f"1-2 表格：{unit}")
+            
+            # 3. 将数据转为 DataFrame 并生成 Excel 文件流
+            result_df = pd.DataFrame(output_data)
+            excel_buffer = io.BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                # header=False 防止输出 DataFrame 原本的英文列名
+                result_df.to_excel(writer, index=False, header=False)
+            
+            # 网页下载按钮
+            st.download_button(
+                label="📥 点击下载统计结果 Excel",
+                data=excel_buffer.getvalue(),
+                file_name="月报表统计结果.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            
+        except Exception as e:
+            st.error(f"处理文件时出错，请检查是否包含所需列！错误信息: {e}")
 
 # --- 选项 3 界面 ---
 elif menu_choice == " 选项 3：快捷报告审核":
