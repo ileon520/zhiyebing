@@ -124,7 +124,7 @@ if menu_choice == " 首页控制台":
         with cols[i % 3]:
             # 使用 Streamlit 原生的 Container（自带边框和背景，不会与按钮分离）
             with st.container(border=True):
-                st.subheader(opt["name"].split("：")[0])
+                st.subheader(opt["name"])
                 st.write(opt["desc"])
                 tags_str = " ".join(opt["tags"])
                 st.caption(f"标签：{tags_str}")
