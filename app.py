@@ -3,9 +3,6 @@ import pandas as pd
 import io
 from collections import defaultdict
 from openai import OpenAI  # 👈 新增的库
-import os
-import json
-from datetime import datetime
 
 # =============================================================================
 # 🌟 昭昭专属：统一 API 接口与模型配置区 🌟
@@ -404,6 +401,10 @@ elif menu_choice == " 🤖 AI 智能测试助手":
                 except Exception as e:
                     st.error(f"❌ 调用失败，请检查网络或 API 额度！具体错误：{e}")
 
+import os
+import json
+from datetime import datetime
+
 # =============================================================================
 # 📜 历史聊天记录存储与读取逻辑
 # =============================================================================
@@ -432,42 +433,36 @@ def load_chat_from_file(session_id):
     return []
 
 # =============================================================================
-# --- 选项 4 界面：AI 聊天与历史记录切换 ---
+# --- 选项 4 界面：AI 智能助手（带历史记录）---
 # =============================================================================
 elif menu_choice == " 选项 4：AI 智能助手（带历史记录）":
     st.title("🤖 AI 智能助手（历史对话控制台）")
     
-    # 1. 侧边/顶部：历史会话管理栏
+    # 1. 侧边栏：历史会话管理
     with st.sidebar:
         st.divider()
         st.subheader("💬 历史聊天记录")
         
-        # 按钮：新建对话
         if st.button("➕ 新建对话框", use_container_width=True):
             new_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             st.session_state.current_chat_id = new_id
             st.session_state.chat_messages = []
             st.rerun()
 
-        # 读取所有历史记录文件
         history_files = get_history_files()
         
         if history_files:
-            # 清理文件名后缀用于展示
             file_options = [f.replace(".json", "") for f in history_files]
             
-            # 初始化当前对话 ID
             if "current_chat_id" not in st.session_state or st.session_state.current_chat_id not in file_options:
                 st.session_state.current_chat_id = file_options[0]
             
-            # 下拉框/单选框让姐姐切换历史聊天记录
             selected_chat = st.selectbox(
                 "📂 选择要查看的历史对话：",
                 file_options,
                 index=file_options.index(st.session_state.current_chat_id) if st.session_state.current_chat_id in file_options else 0
             )
             
-            # 切换历史记录时，加载该记录的数据
             if selected_chat != st.session_state.current_chat_id:
                 st.session_state.current_chat_id = selected_chat
                 st.session_state.chat_messages = load_chat_from_file(selected_chat)
@@ -477,11 +472,9 @@ elif menu_choice == " 选项 4：AI 智能助手（带历史记录）":
                 st.session_state.current_chat_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 st.session_state.chat_messages = []
 
-    # 确保当前消息状态已初始化
     if "chat_messages" not in st.session_state:
         st.session_state.chat_messages = load_chat_from_file(st.session_state.current_chat_id)
 
-    # 显示当前选中的对话框提示
     st.caption(f"当前对话 ID：`{st.session_state.current_chat_id}` （已开启自动实时保存）")
 
     # 2. 渲染当前聊天框的所有历史消息
@@ -492,21 +485,13 @@ elif menu_choice == " 选项 4：AI 智能助手（带历史记录）":
     # 3. 聊天输入框
     user_input = st.chat_input("输入你的问题，例如：职业健康检查的流程是什么？")
     if user_input:
-        # 显示用户发送的消息
         with st.chat_message("user"):
             st.write(user_input)
         st.session_state.chat_messages.append({"role": "user", "content": user_input})
 
-        # 模拟/调用 AI 回复（这里可以接入实际的大模型 API）
         ai_response = f"昭昭收到了姐姐的问题：‘{user_input}’。这是关于历史聊天记录测试的回复内容！"
         with st.chat_message("assistant"):
             st.write(ai_response)
         st.session_state.chat_messages.append({"role": "assistant", "content": ai_response})
 
-        # 实时保存到本地文件
         save_chat_to_file(st.session_state.current_chat_id, st.session_state.chat_messages)
-
-# --- 模板：未来新增的选项 ---
-# elif menu_choice == " 这里替换为新选项的名字":
-#     st.title("新选项标题")
-#     st.write("新选项功能逻辑")
