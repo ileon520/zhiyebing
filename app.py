@@ -282,7 +282,7 @@ elif menu_choice == " 选项 1：报告书百分比转文字":
 # --- 选项 2 界面 ---
 elif menu_choice == " 选项 2：疾控月报表":
     st.title("📊 选项 2：疾控月报表自动统计")
-    st.write("请上传包含【用工单位名称】和【体检危害因素名称】的 Excel 文件：")
+    st.write("可以直接把省平台下载的Excel表格上传，也可以只保留【用工单位名称】和【体检危害因素名称】这2列再上传：")
     
     uploaded_file = st.file_uploader("点击或拖入上传 Excel 文件", type=["xlsx", "xls"], key="cdc_upload")
     
