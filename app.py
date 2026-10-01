@@ -149,12 +149,6 @@ st.sidebar.divider()
 # 侧边栏菜单（绑定 session_state 的 current_page）
 menu_choice = st.sidebar.radio("📌 请选择功能：", filtered_options, key="current_page")
 
-# 侧边栏最下方增加 AI 聊天入口按钮
-st.sidebar.divider()
-if st.sidebar.button("🤖 快捷进入 AI 聊天测试", use_container_width=True):
-    st.session_state.current_page = " 🤖 AI 智能测试助手"
-    st.rerun()
-
 # -----------------------------------------------------------------------------
 # 4. 页面内容及各选项具体逻辑
 # -----------------------------------------------------------------------------
@@ -337,7 +331,18 @@ elif menu_choice == " 选项 3：快捷报告审核":
 
 # --- 🤖 AI 智能测试助手 界面 ---
 elif menu_choice == " 🤖 AI 智能测试助手":
-    st.title("🤖 AI 智能测试助手")
+    # 顶部标题与“新开聊天”按钮（并排放置）
+    col_title, col_reset = st.columns([3, 1])
+    with col_title:
+        st.title("🤖 AI 智能测试助手")
+    with col_reset:
+        # 点击清空聊天历史，开启新对话
+        if st.button("🧹 新开聊天", use_container_width=True):
+            st.session_state.chat_messages = [
+                {"role": "assistant", "content": "姐姐好！我是 AI 测试助手，当前接口正常运行，你想测试什么？"}
+            ]
+            st.rerun()
+
     st.write("姐姐可以在这里随意测试各个 API 接口与模型的可用性：")
 
     # 1. 下拉菜单选择 API 厂商与模型
