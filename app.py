@@ -324,25 +324,25 @@ elif menu_choice == " 选项 2：疾控月报表":
             
         except Exception as e:
             st.error(f"处理文件时出错，请检查是否包含所需列！错误信息: {e}")
-            # 增加的示例展示区
-            st.divider()
-            st.subheader("💡 填写示例与说明")
-            st.write("表格格式示例：")
-            
-            # 表格示例
-            example_df = pd.DataFrame({
-                "用工单位名称": [
-                    "中国铁路郑州局集团有限公司新乡机务段",
-                    "中国铁路郑州局集团有限公司新乡机务段",
-                    "中国铁路郑州局集团有限公司新乡机务段",
-                    "中国铁路郑州局集团有限公司新乡机务段"
-                ],
-                "体检危害因素名称": ["噪声", "其他粉尘,噪声", "噪声", "其他粉尘"]
-            })
-            st.dataframe(example_df, use_container_width=True)
+    # 增加的示例展示区
+    st.divider()
+    st.subheader("💡 填写示例与说明")
+    st.write("表格格式示例：")
+    
+    # 表格示例
+    example_df = pd.DataFrame({
+        "用工单位名称": [
+            "中国铁路郑州局集团有限公司新乡机务段",
+            "中国铁路郑州局集团有限公司新乡机务段",
+            "中国铁路郑州局集团有限公司新乡机务段",
+            "中国铁路郑州局集团有限公司新乡机务段"
+        ],
+        "体检危害因素名称": ["噪声", "其他粉尘,噪声", "噪声", "其他粉尘"]
+    })
+    st.dataframe(example_df, use_container_width=True)
 
-            # 图片示例（将示例图片命名为 example.jpg 放入同文件夹，去掉下一行的 # 即可显示）
-            # st.image("example.jpg", caption="Excel截图示例", use_container_width=True)
+    # 图片示例（将示例图片命名为 example.jpg 放入同文件夹，去掉下一行的 # 即可显示）
+    # st.image("example.jpg", caption="Excel截图示例", use_container_width=True)
 
 # --- 选项 3 界面 ---
 elif menu_choice == " 选项 3：快捷报告审核":
