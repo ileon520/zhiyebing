@@ -3,36 +3,7 @@ import pandas as pd
 import io
 from collections import defaultdict
 from openai import OpenAI  # 👈 新增的库
-import os
-import json
-from datetime import datetime
 
-# =============================================================================
-# 📜 历史聊天记录存储与读取逻辑
-# =============================================================================
-CHAT_DIR = "chat_history"
-if not os.path.exists(CHAT_DIR):
-    os.makedirs(CHAT_DIR)
-
-def get_history_files():
-    """获取所有历史聊天文件名（按最新时间排序）"""
-    files = [f for f in os.listdir(CHAT_DIR) if f.endswith(".json")]
-    files.sort(reverse=True)
-    return files
-
-def save_chat_to_file(session_id, messages):
-    """保存对话记录到 JSON 文件"""
-    file_path = os.path.join(CHAT_DIR, f"{session_id}.json")
-    with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(messages, f, ensure_ascii=False, indent=2)
-
-def load_chat_from_file(session_id):
-    """从 JSON 文件加载历史对话"""
-    file_path = os.path.join(CHAT_DIR, f"{session_id}.json")
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
 
 # =============================================================================
 # 🌟 昭昭专属：统一 API 接口与模型配置区 🌟
@@ -430,67 +401,3 @@ elif menu_choice == " 🤖 AI 智能测试助手":
                     st.session_state.chat_messages.append({"role": "assistant", "content": reply})
                 except Exception as e:
                     st.error(f"❌ 调用失败，请检查网络或 API 额度！具体错误：{e}")
-
-# =============================================================================
-# --- 选项 4 界面：AI 智能助手（带历史记录）---
-# =============================================================================
-elif menu_choice == " 选项 4：AI 智能助手（带历史记录）":
-    st.title("🤖 AI 智能助手（历史对话控制台）")
-    
-    # 1. 侧边栏：历史会话管理
-    with st.sidebar:
-        st.divider()
-        st.subheader("💬 历史聊天记录")
-        
-        if st.button("➕ 新建对话框", use_container_width=True):
-            new_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            st.session_state.current_chat_id = new_id
-            st.session_state.chat_messages = []
-            st.rerun()
-
-        history_files = get_history_files()
-        
-        if history_files:
-            file_options = [f.replace(".json", "") for f in history_files]
-            
-            if "current_chat_id" not in st.session_state or st.session_state.current_chat_id not in file_options:
-                st.session_state.current_chat_id = file_options[0]
-            
-            selected_chat = st.selectbox(
-                "📂 选择要查看的历史对话：",
-                file_options,
-                index=file_options.index(st.session_state.current_chat_id) if st.session_state.current_chat_id in file_options else 0
-            )
-            
-            if selected_chat != st.session_state.current_chat_id:
-                st.session_state.current_chat_id = selected_chat
-                st.session_state.chat_messages = load_chat_from_file(selected_chat)
-                st.rerun()
-        else:
-            if "current_chat_id" not in st.session_state:
-                st.session_state.current_chat_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                st.session_state.chat_messages = []
-
-    if "chat_messages" not in st.session_state:
-        st.session_state.chat_messages = load_chat_from_file(st.session_state.current_chat_id)
-
-    st.caption(f"当前对话 ID：`{st.session_state.current_chat_id}` （已开启自动实时保存）")
-
-    # 2. 渲染当前聊天框的所有历史消息
-    for msg in st.session_state.chat_messages:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
-
-    # 3. 聊天输入框
-    user_input = st.chat_input("输入你的问题，例如：职业健康检查的流程是什么？")
-    if user_input:
-        with st.chat_message("user"):
-            st.write(user_input)
-        st.session_state.chat_messages.append({"role": "user", "content": user_input})
-
-        ai_response = f"昭昭收到了姐姐的问题：‘{user_input}’。这是关于历史聊天记录测试的回复内容！"
-        with st.chat_message("assistant"):
-            st.write(ai_response)
-        st.session_state.chat_messages.append({"role": "assistant", "content": ai_response})
-
-        save_chat_to_file(st.session_state.current_chat_id, st.session_state.chat_messages)
