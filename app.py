@@ -2,6 +2,42 @@
 import pandas as pd
 import io
 from collections import defaultdict
+from openai import OpenAI  # 👈 新增的库
+
+# =============================================================================
+# 🌟 昭昭专属：统一 API 接口与模型配置区 🌟
+# =============================================================================
+API_CONFIGS = {
+    "智谱 AI (GLM-4-Flash - 完全免费)": {
+        "api_key": "da3565b0d1a646268a9c8e4ab1560c48.W71ryJprJ5MepXSy",
+        "base_url": "https://open.bigmodel.cn/api/paas/v4",
+        "models": ["glm-4-flash"]
+    },
+    "硅基流动 (DeepSeek - 代金券范围)": {
+        "api_key": "sk-dymnpvuauhjfqmgqmrrkobcnjtgteyaeehghouqajsjejfxi",
+        "base_url": "https://api.siliconflow.cn/v1",
+        "models": ["deepseek-ai/DeepSeek-R1", "deepseek-ai/DeepSeek-V3"]
+    },
+    # 💡 以后姐姐要加 Gemini，直接取消下面几行的注释，把 Key 填上即可：
+    # "Google Gemini": {
+    #     "api_key": "这里填Gemini的Key",
+    #     "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+    #     "models": ["gemini-1.5-flash", "gemini-1.5-pro"]
+    # }
+}
+
+def call_ai_api(provider_name, model_name, messages):
+    """统一的通用 AI 调用函数，全自动适配所有厂商"""
+    cfg = API_CONFIGS[provider_name]
+    client = OpenAI(
+        api_key=cfg["api_key"],
+        base_url=cfg["base_url"]
+    )
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=messages
+    )
+    return response.choices[0].message.content
 
 # =============================================================================
 # 🌟 昭昭专属防遗漏：核心配置区 🌟
@@ -27,6 +63,11 @@ APP_OPTIONS = [
         "name": " 选项 3：待定", 
         "tags": ["#？", "#？"], 
         "desc": "？"
+    },
+    {
+        "name": " 🤖 AI 智能测试助手", 
+        "tags": ["#AI", "#测试", "#对话"], 
+        "desc": "测试智谱、硅基流动等多 API 接口可用性与回答效果"
     },
     # 💡 以后需要增加 100 个选项，就一直往这里复制粘贴，改掉名字和标签即可：
     # {"name": " 选项 4：月报表生成", "tags": ["#月报表", "#统计"], "desc": "自动生成月度统计报表"},
@@ -107,6 +148,12 @@ if not filtered_options:
 st.sidebar.divider()
 # 侧边栏菜单（绑定 session_state 的 current_page）
 menu_choice = st.sidebar.radio("📌 请选择功能：", filtered_options, key="current_page")
+
+# 侧边栏最下方增加 AI 聊天入口按钮
+st.sidebar.divider()
+if st.sidebar.button("🤖 快捷进入 AI 聊天测试", use_container_width=True):
+    st.session_state.current_page = " 🤖 AI 智能测试助手"
+    st.rerun()
 
 # -----------------------------------------------------------------------------
 # 4. 页面内容及各选项具体逻辑
@@ -287,6 +334,62 @@ elif menu_choice == " 选项 2：疾控月报表":
 elif menu_choice == " 选项 3：快捷报告审核":
     st.title("📝 选项 3：快捷报告审核")
     st.info("这里放置快捷报告审核功能。")
+
+# --- 🤖 AI 智能测试助手 界面 ---
+elif menu_choice == " 🤖 AI 智能测试助手":
+    st.title("🤖 AI 智能测试助手")
+    st.write("姐姐可以在这里随意测试各个 API 接口与模型的可用性：")
+
+    # 1. 下拉菜单选择 API 厂商与模型
+    col1, col2 = st.columns(2)
+    with col1:
+        selected_provider = st.selectbox(
+            "📌 选择 API 厂商：",
+            list(API_CONFIGS.keys()),
+            index=0  # 默认选中第一个（智谱 AI）
+        )
+    with col2:
+        available_models = API_CONFIGS[selected_provider]["models"]
+        selected_model = st.selectbox(
+            "🧠 选择具体模型：",
+            available_models,
+            index=0
+        )
+
+    st.caption(f"当前使用的接口：`{selected_provider}` | 模型名：`{selected_model}`")
+    st.divider()
+
+    # 2. 初始化对话历史
+    if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = [
+            {"role": "assistant", "content": "姐姐好！我是 AI 测试助手，当前接口正常运行，你想测试什么？"}
+        ]
+
+    # 显示过往聊天记录
+    for msg in st.session_state.chat_messages:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
+
+    # 3. 聊天输入框与 API 发送
+    user_input = st.chat_input("请输入你想对 AI 说的测试内容...")
+    if user_input:
+        # 显示用户发送的信息
+        st.session_state.chat_messages.append({"role": "user", "content": user_input})
+        with st.chat_message("user"):
+            st.write(user_input)
+
+        # 调用后台 API 接口获取回答
+        with st.chat_message("assistant"):
+            with st.spinner("AI 思考中，请稍候..."):
+                try:
+                    # 格式化历史消息发给 API
+                    api_msgs = [{"role": m["role"], "content": m["content"]} for m in st.session_state.chat_messages]
+                    reply = call_ai_api(selected_provider, selected_model, api_msgs)
+                    
+                    st.write(reply)
+                    st.session_state.chat_messages.append({"role": "assistant", "content": reply})
+                except Exception as e:
+                    st.error(f"❌ 调用失败，请检查网络或 API 额度！具体错误：{e}")
 
 # --- 模板：未来新增的选项 ---
 # elif menu_choice == " 这里替换为新选项的名字":
