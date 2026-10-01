@@ -3,6 +3,36 @@ import pandas as pd
 import io
 from collections import defaultdict
 from openai import OpenAI  # 👈 新增的库
+import os
+import json
+from datetime import datetime
+
+# =============================================================================
+# 📜 历史聊天记录存储与读取逻辑
+# =============================================================================
+CHAT_DIR = "chat_history"
+if not os.path.exists(CHAT_DIR):
+    os.makedirs(CHAT_DIR)
+
+def get_history_files():
+    """获取所有历史聊天文件名（按最新时间排序）"""
+    files = [f for f in os.listdir(CHAT_DIR) if f.endswith(".json")]
+    files.sort(reverse=True)
+    return files
+
+def save_chat_to_file(session_id, messages):
+    """保存对话记录到 JSON 文件"""
+    file_path = os.path.join(CHAT_DIR, f"{session_id}.json")
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(messages, f, ensure_ascii=False, indent=2)
+
+def load_chat_from_file(session_id):
+    """从 JSON 文件加载历史对话"""
+    file_path = os.path.join(CHAT_DIR, f"{session_id}.json")
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
 
 # =============================================================================
 # 🌟 昭昭专属：统一 API 接口与模型配置区 🌟
@@ -400,37 +430,6 @@ elif menu_choice == " 🤖 AI 智能测试助手":
                     st.session_state.chat_messages.append({"role": "assistant", "content": reply})
                 except Exception as e:
                     st.error(f"❌ 调用失败，请检查网络或 API 额度！具体错误：{e}")
-
-import os
-import json
-from datetime import datetime
-
-# =============================================================================
-# 📜 历史聊天记录存储与读取逻辑
-# =============================================================================
-CHAT_DIR = "chat_history"
-if not os.path.exists(CHAT_DIR):
-    os.makedirs(CHAT_DIR)
-
-def get_history_files():
-    """获取所有历史聊天文件名（按最新时间排序）"""
-    files = [f for f in os.listdir(CHAT_DIR) if f.endswith(".json")]
-    files.sort(reverse=True)
-    return files
-
-def save_chat_to_file(session_id, messages):
-    """保存对话记录到 JSON 文件"""
-    file_path = os.path.join(CHAT_DIR, f"{session_id}.json")
-    with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(messages, f, ensure_ascii=False, indent=2)
-
-def load_chat_from_file(session_id):
-    """从 JSON 文件加载历史对话"""
-    file_path = os.path.join(CHAT_DIR, f"{session_id}.json")
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
 
 # =============================================================================
 # --- 选项 4 界面：AI 智能助手（带历史记录）---
