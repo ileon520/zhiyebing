@@ -1,8 +1,20 @@
 ﻿import streamlit as st
 import pandas as pd
 import io
+import socket
 from collections import defaultdict
 from openai import OpenAI  # 👈 新增的库
+
+
+# 👈 2. 实时网络检测函数（移除了 @st.cache_data 缓存，实现断网实时切换）
+def check_network_environment():
+  """实时检测是否能连通外网（0.5秒毫秒级检测）"""
+  try:
+    # 尝试连接外网智谱 API 端口 (443)，超时设为 0.5 秒
+    socket.create_connection(("open.bigmodel.cn", 443), timeout=0.5)
+    return True  # 连通外网
+  except Exception:
+    return False  # 纯内网/断网环境
 
 
 # =============================================================================
@@ -19,6 +31,12 @@ API_CONFIGS = {
         "base_url": "https://api.siliconflow.cn/v1",
         "models": ["deepseek-ai/DeepSeek-R1", "deepseek-ai/DeepSeek-V3"]
     },
+    # 👇 这里是新增的本地 Ollama 专属通道
+    "本地小模型 (Ollama - Qwen2.5)": {
+        "api_key": "ollama",  # 本地调用不需要真实的秘钥，随便填即可
+        "base_url": "http://127.0.0.1:11434/v1",  # 这是 Ollama 默认的本地服务通信地址
+        "models": ["qwen2.5:1.5b"]  # 填入你下载的具体模型名称
+    }
     # 💡 以后姐姐要加 Gemini，直接取消下面几行的注释，把 Key 填上即可：
     # "Google Gemini": {
     #     "api_key": "这里填Gemini的Key",
@@ -27,18 +45,43 @@ API_CONFIGS = {
     # }
 }
 
-def call_ai_api(provider_name, model_name, messages):
-    """统一的通用 AI 调用函数，全自动适配所有厂商"""
-    cfg = API_CONFIGS[provider_name]
-    client = OpenAI(
-        api_key=cfg["api_key"],
-        base_url=cfg["base_url"]
-    )
-    response = client.chat.completions.create(
-        model=model_name,
-        messages=messages
-    )
-    return response.choices[0].message.content
+def call_ai_api(provider_name, model_name, messages, use_gbz=False):
+  """统一的通用 AI 调用函数，全自动适配所有厂商
+
+  支持智能选择性携带 GBZ188-2025 资料（自动避开硅基流动）
+  """
+  cfg = API_CONFIGS[provider_name]
+  client = OpenAI(api_key=cfg["api_key"], base_url=cfg["base_url"])
+
+  final_messages = []
+
+  # 🌟 智能防御与携带规则：
+  # 只有当：1. 姐姐勾选了发送 2. 厂商名称中不含“硅基” 3. 本地存在 txt 文件 时，才追加资料
+  if use_gbz and ("硅基" not in provider_name):
+    if os.path.exists("GBZ188_2025.txt"):
+      try:
+        with open("GBZ188_2025.txt", "r", encoding="utf-8") as f:
+          gbz_content = f.read()
+        # 作为系统级背景提示词注入
+        sys_msg = {
+            "role": "system",
+            "content": (
+                "你是一名专业的职业健康与职业病辅助助手。"
+                "以下是《GBZ 188-2025 职业健康监护技术规范》的相关资料，请严格参考此标准回答问题：\n\n"
+                f"{gbz_content}"
+            ),
+        }
+        final_messages.append(sys_msg)
+      except Exception:
+        pass  # 若读取文件出错则安全忽略，不影响正常回答
+
+  # 拼接用户的对话历史
+  final_messages.extend(messages)
+
+  response = client.chat.completions.create(
+      model=model_name, messages=final_messages
+  )
+  return response.choices[0].message.content
 
 # =============================================================================
 # 🌟 昭昭专属防遗漏：核心配置区 🌟
@@ -466,13 +509,32 @@ elif menu_choice == " 🤖 AI 智能测试助手":
     st.write("姐姐可以在这里随意测试各个 API 接口与模型的可用性：")
 
     # 1. 下拉菜单选择 API 厂商与模型
+    provider_list = list(API_CONFIGS.keys())
+
+    # 🌟 智能判断默认选中项：能连外网默认选择【智谱 AI】，纯内网自动切换为【本地小模型】
+    if check_network_environment():
+      # 外网：自动匹配名称中包含“智谱”的选项索引，若未找到则默认第一个
+      default_provider_idx = next(
+          (i for i, name in enumerate(provider_list) if "智谱" in name), 0
+      )
+    else:
+      # 内网：自动匹配名称中包含“本地”或“Ollama”的选项索引
+      default_provider_idx = next(
+          (
+              i
+              for i, name in enumerate(provider_list)
+              if "本地" in name or "Ollama" in name
+          ),
+          0,
+      )
+
     col1, col2 = st.columns(2)
     with col1:
-        selected_provider = st.selectbox(
-            "📌 选择 API 厂商：",
-            list(API_CONFIGS.keys()),
-            index=0  # 默认选中第一个（智谱 AI）
-        )
+      selected_provider = st.selectbox(
+          "📌 选择 API 厂商：",
+          provider_list,
+          index=default_provider_idx,  # 👈 替换为智能判断出的默认索引！
+      )
     with col2:
         available_models = API_CONFIGS[selected_provider]["models"]
         selected_model = st.selectbox(
@@ -481,7 +543,21 @@ elif menu_choice == " 🤖 AI 智能测试助手":
             index=0
         )
 
-    st.caption(f"当前使用的接口：`{selected_provider}` | 模型名：`{selected_model}`")
+    st.caption(
+        f"当前使用的接口：`{selected_provider}` | 模型名：`{selected_model}`"
+    )
+
+    # 🌟 1. 动态勾选框：控制是否附带 GBZ 188 资料
+    is_silicon = "硅基" in selected_provider
+    if is_silicon:
+      st.info("💡 硅基流动模式：为节省代金券/流量，已自动关闭外部资料携带。")
+      attach_gbz = False
+    else:
+      attach_gbz = st.checkbox(
+          "📚 勾选此项：向 AI 附加《GBZ 188-2025》参考资料（适合向智谱/本地小模型提问时开启）",
+          value=False,  # 默认不勾选，不浪费任何无谓的 tokens！
+      )
+
     st.divider()
 
     # 2. 初始化对话历史
@@ -509,7 +585,10 @@ elif menu_choice == " 🤖 AI 智能测试助手":
                 try:
                     # 格式化历史消息发给 API
                     api_msgs = [{"role": m["role"], "content": m["content"]} for m in st.session_state.chat_messages]
-                    reply = call_ai_api(selected_provider, selected_model, api_msgs)
+                    # 传入 attach_gbz 参数：只有勾选了才会带上 txt 内容
+                    reply = call_ai_api(
+                        selected_provider, selected_model, api_msgs, use_gbz=attach_gbz
+                    )
                     
                     st.write(reply)
                     st.session_state.chat_messages.append({"role": "assistant", "content": reply})
