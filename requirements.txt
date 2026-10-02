@@ -1,5 +1,7 @@
 streamlit
 pandas
 openpyxl
-openai
+xlrd
+lxml
 pypinyin
+openai
