@@ -52,13 +52,13 @@ def get_dark_color(hex_color, factor=0.35):
     except Exception:
         return "#222222"
 
-def add_multi_text_to_image(img, text_items):
+def add_multi_text_to_image(img, text_items, global_line_gap=20):
     """在图片上绘制多组独立风格的文字，并实现整体绝对垂直与水平居中"""
     img = img.convert("RGB")
     draw = ImageDraw.Draw(img)
     img_w, img_h = img.size
 
-    # 1. 预先计算所有文字组的总高度（含宽行间距）
+    # 1. 预先计算所有文字组的总高度（使用统一行间距）
     block_gap = 40  # 不同文字组之间的空隙
     total_content_height = 0
     calculated_blocks = []
@@ -66,12 +66,12 @@ def add_multi_text_to_image(img, text_items):
     for item in text_items:
         text = item["text"]
         font_size = item["font_size"]
-        lines = [line.strip() for line in text.split("\n") if line.strip()]
+        lines = [line.strip() for line in text.strip().split("\n") if line.strip()]
         if not lines:
             continue
 
         font = get_font(font_size)
-        line_gap = int(font_size * 0.35)  # 宽行间距：取字号的 35% 作为行与行空隙
+        line_gap = global_line_gap  # 统一使用全局调节的行间距
 
         line_info = []
         block_height = 0
@@ -105,15 +105,15 @@ def add_multi_text_to_image(img, text_items):
     # 2. 计算整体起始 Y 坐标，确保 1 行、2 行或 3 行时总体始终居中
     current_y = (img_h - total_content_height) // 2
 
-    # 3. 逐组渲染文字（暗影 + 亮黄描边 + 主字）
+    # 3. 逐组绘制文字（同色暗影 + 靓黄描边 + 主字）
     for block in calculated_blocks:
         font = block["font"]
         item = block["item"]
         line_gap = block["line_gap"]
         
-        # 自动获取同色系暗色阴影
+        # 自动生成同色系暗色阴影
         dark_shadow_color = get_dark_color(item["text_color"])
-        shadow_offset = max(6, int(item["font_size"] * 0.05))  # 立体立体阴影偏移量
+        shadow_offset = max(6, int(item["font_size"] * 0.05))  # 阴影位移
 
         for line_data in block["lines"]:
             line = line_data["line"]
@@ -143,7 +143,7 @@ def add_multi_text_to_image(img, text_items):
 
             current_y += h + line_gap
 
-        current_y += block_gap  # 加上组间距
+        current_y += block_gap  # 加上不同组之间的间距
 
     return img
 
@@ -164,8 +164,8 @@ def render_page():
             {
                 "text": "之前的听力\n出报告啦",
                 "font_size": 270,
-                "text_color": "#FF0000",   # 默认红色
-                "stroke_color": "#FFFF00", # 默认黄色描边
+                "text_color": "#FF0000",   # 默认鲜红色
+                "stroke_color": "#FFFF00", # 默认靓黄色描边
                 "stroke_width": 16
             }
         ]
@@ -173,7 +173,7 @@ def render_page():
     col_control, col_preview = st.columns([1, 1])
 
     with col_control:
-        st.subheader("⚙️ 素材与多行文字设置")
+        st.subheader("⚙️ 素材与排版参数")
         
         selected_label = st.selectbox("选择背景素材图片：", list(image_options.keys()))
         possible_paths = image_options[selected_label]
@@ -184,10 +184,19 @@ def render_page():
                 actual_img_path = p
                 break
 
-        st.divider()
-        st.write("✍️ **文字行与风格定制（支持新增多组独立风格）**")
+        # 🌟 整体行间距控制滑块（默认 20，比之前紧凑了 2/3）
+        global_line_gap = st.slider(
+            "📏 整体行间距（往左拉紧凑，往右拉稀疏）", 
+            min_value=-30, 
+            max_value=150, 
+            value=20, 
+            step=5
+        )
 
-        # 循环渲染每一组文字的控制面板
+        st.divider()
+        st.write("✍️ **文字内容与风格定制（支持新增多组独立风格）**")
+
+        # 动态渲染每一组文字控制项
         items_to_remove = []
         for idx, item in enumerate(st.session_state.text_items):
             with st.expander(f"📝 第 {idx + 1} 组文字配置", expanded=True):
@@ -201,7 +210,7 @@ def render_page():
                 c1, c2 = st.columns(2)
                 with c1:
                     item["text_color"] = st.color_picker(
-                        "字体颜色", 
+                        "字体主颜色", 
                         value=item["text_color"], 
                         key=f"tcolor_{idx}"
                     )
@@ -239,21 +248,21 @@ def render_page():
                 st.session_state.text_items.pop(idx)
             st.rerun()
 
-        # 按钮：新增一组文字
+        # 按钮配置
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             if st.button("➕ 新增一组新文字", use_container_width=True):
                 st.session_state.text_items.append({
                     "text": "祝您健康快乐",
                     "font_size": 200,
-                    "text_color": "#0000FF",   # 新增时默认蓝色
-                    "stroke_color": "#FFFF00", # 靓黄描边
+                    "text_color": "#0000FF",   # 新增默认宝蓝色
+                    "stroke_color": "#FFFF00", # 靓黄色描边
                     "stroke_width": 16
                 })
                 st.rerun()
 
         with col_btn2:
-            if st.button("🔄 重置文字设置", use_container_width=True):
+            if st.button("🔄 重置所有设置", use_container_width=True):
                 st.session_state.text_items = [
                     {
                         "text": "之前的听力\n出报告啦",
@@ -271,7 +280,11 @@ def render_page():
         if actual_img_path:
             try:
                 base_img = Image.open(actual_img_path)
-                res_img = add_multi_text_to_image(base_img, st.session_state.text_items)
+                res_img = add_multi_text_to_image(
+                    base_img, 
+                    st.session_state.text_items, 
+                    global_line_gap=global_line_gap
+                )
                 
                 st.image(res_img, caption="生成的表情包样式", use_container_width=True)
                 
