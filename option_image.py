@@ -53,16 +53,13 @@ def get_dark_color(hex_color, factor=0.35):
         return "#222222"
 
 def add_multi_text_to_image(img, text_items, global_line_gap=20):
-    """在图片上绘制多组独立风格的文字，并实现整体绝对垂直与水平居中"""
+    """在图片上绘制多组独立风格的文字，并统一绝对均匀的行间距与垂直居中"""
     img = img.convert("RGB")
     draw = ImageDraw.Draw(img)
     img_w, img_h = img.size
 
-    # 1. 预先计算所有文字组的总高度（使用统一行间距）
-    block_gap = 40  # 不同文字组之间的空隙
-    total_content_height = 0
-    calculated_blocks = []
-
+    # 1. 提取并平铺所有行，统一计算行高与宽度
+    all_lines = []
     for item in text_items:
         text = item["text"]
         font_size = item["font_size"]
@@ -71,79 +68,75 @@ def add_multi_text_to_image(img, text_items, global_line_gap=20):
             continue
 
         font = get_font(font_size)
-        line_gap = global_line_gap  # 统一使用全局调节的行间距
+        
+        # 使用字体标准的 ascent + descent 作为统一高度，消除字符笔画差异导致的排版误差
+        try:
+            ascent, descent = font.getmetrics()
+            font_h = ascent + descent
+        except Exception:
+            font_h = int(font_size * 0.85)
 
-        line_info = []
-        block_height = 0
-
-        for i, line in enumerate(lines):
+        for line in lines:
             try:
                 bbox = font.getbbox(line)
                 w = bbox[2] - bbox[0]
-                h = bbox[3] - bbox[1]
             except Exception:
-                w, h = font_size * len(line), font_size
+                w = font_size * len(line)
 
-            line_info.append({"line": line, "w": w, "h": h})
-            block_height += h + (line_gap if i < len(lines) - 1 else 0)
+            all_lines.append({
+                "line": line,
+                "w": w,
+                "h": font_h,
+                "font": font,
+                "item": item
+            })
 
-        calculated_blocks.append({
-            "lines": line_info,
-            "font": font,
-            "item": item,
-            "block_height": block_height,
-            "line_gap": line_gap
-        })
-
-        total_content_height += block_height
-
-    if not calculated_blocks:
+    if not all_lines:
         return img
 
-    total_content_height += block_gap * (len(calculated_blocks) - 1)
+    # 2. 精确计算所有行占用的总高度（包含统一的 global_line_gap）
+    total_content_height = sum(line_data["h"] for line_data in all_lines) + global_line_gap * (len(all_lines) - 1)
 
-    # 2. 计算整体起始 Y 坐标，确保 1 行、2 行或 3 行时总体始终居中
+    # 3. 整体绝对垂直居中起始点
     current_y = (img_h - total_content_height) // 2
 
-    # 3. 逐组绘制文字（同色暗影 + 靓黄描边 + 主字）
-    for block in calculated_blocks:
-        font = block["font"]
-        item = block["item"]
-        line_gap = block["line_gap"]
-        
-        # 自动生成同色系暗色阴影
+    # 4. 逐行绘制
+    for idx, line_data in enumerate(all_lines):
+        line = line_data["line"]
+        w = line_data["w"]
+        h = line_data["h"]
+        font = line_data["font"]
+        item = line_data["item"]
+
+        x = (img_w - w) // 2  # 水平居中
+
         dark_shadow_color = get_dark_color(item["text_color"])
-        shadow_offset = max(6, int(item["font_size"] * 0.05))  # 阴影位移
+        shadow_offset = max(6, int(item["font_size"] * 0.05))
 
-        for line_data in block["lines"]:
-            line = line_data["line"]
-            w = line_data["w"]
-            h = line_data["h"]
-            x = (img_w - w) // 2  # 水平居中
+        # A. 底层同色暗影
+        draw.text(
+            (x + shadow_offset, current_y + shadow_offset),
+            line,
+            font=font,
+            fill=dark_shadow_color,
+            stroke_width=item["stroke_width"],
+            stroke_fill=dark_shadow_color
+        )
 
-            # A. 绘制底层同色暗系立体阴影
-            draw.text(
-                (x + shadow_offset, current_y + shadow_offset),
-                line,
-                font=font,
-                fill=dark_shadow_color,
-                stroke_width=item["stroke_width"],
-                stroke_fill=dark_shadow_color
-            )
+        # B. 主文字与描边
+        draw.text(
+            (x, current_y),
+            line,
+            font=font,
+            fill=item["text_color"],
+            stroke_width=item["stroke_width"],
+            stroke_fill=item["stroke_color"]
+        )
 
-            # B. 绘制上层主文字与靓黄描边
-            draw.text(
-                (x, current_y),
-                line,
-                font=font,
-                fill=item["text_color"],
-                stroke_width=item["stroke_width"],
-                stroke_fill=item["stroke_color"]
-            )
-
-            current_y += h + line_gap
-
-        current_y += block_gap  # 加上不同组之间的间距
+        # 推进到下一行起点（只有不是最后一行时才加间距）
+        current_y += h
+        if idx < len(all_lines) - 1:
+            current_y += global_line_gap
 
     return img
 
@@ -184,10 +177,10 @@ def render_page():
                 actual_img_path = p
                 break
 
-        # 🌟 整体行间距控制滑块（默认 20，比之前紧凑了 2/3）
+        # 🌟 整体行间距控制滑块
         global_line_gap = st.slider(
             "📏 整体行间距（往左拉紧凑，往右拉稀疏）", 
-            min_value=-30, 
+            min_value=-50, 
             max_value=150, 
             value=20, 
             step=5
