@@ -172,8 +172,12 @@ APP_OPTIONS = [
         "tags": ["#AI", "#测试", "#对话"], 
         "desc": "内网用不了AI，只能外网用。测试智谱、硅基流动等多 API 接口可用性与回答效果"
     },
-    # 💡 以后需要增加 100 个选项，就一直往这里复制粘贴，改掉名字和标签即可：
-    # {"name": " 选项 4：月报表生成", "tags": ["#月报表", "#统计"], "desc": "自动生成月度统计报表"},
+    # 👇 下面是姐姐新加的选项 4 名片：
+    {
+        "name": " 🌸 选项 4：中老年表情包制作", 
+        "tags": ["#图片", "#表情包", "#花样加字"], 
+        "desc": "选择预设荷花/鲜花背景图，一键制作喜庆中老年发光大字表情包"
+    }
 ]
 
 # -----------------------------------------------------------------------------
@@ -982,3 +986,8 @@ elif menu_choice == " 🤖 AI 智能测试助手":
                     st.session_state.chat_messages.append({"role": "assistant", "content": reply})
                 except Exception as e:
                     st.error(f"❌ 调用失败，请检查网络或 API 额度！具体错误：{e}")
+# --- 🌸 选项 4 界面 ---
+elif menu_choice == " 🌸 选项 4：中老年表情包制作":
+    import option_image
+    option_image.render_page()                    
+                    
