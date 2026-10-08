@@ -2,22 +2,40 @@ import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
 import os
 import io
+import urllib.request
+
+FONT_FILENAME = "wqy-microhei.ttc"
 
 def get_font(font_size):
-    """智能查找支持中文的字体，兼容 Windows/Linux/Streamlit Cloud"""
+    """智能查找支持中文的字体，若云端缺乏中文字体则自动下载并缓存"""
     font_paths = [
+        FONT_FILENAME,  # 本地缓存字体
         "simhei.ttf", "msyh.ttc", "simsun.ttc",  # 本地/Windows常见字体
         "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",  # Linux / Streamlit Cloud 常用中文字体
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
         "/System/Library/Fonts/PingFang.ttc"  # Mac 字体
     ]
+    
+    # 1. 尝试从本地或系统已知路径读取
     for path in font_paths:
         if os.path.exists(path):
             try:
                 return ImageFont.truetype(path, font_size)
             except Exception:
                 pass
-    # 兜底使用默认字体
+
+    # 2. 如果云端完全找不到中文字体，自动从 Git 镜像下载标准开源中文字体文件
+    font_url = "https://gitee.com/mirrors/wqy-microhei/raw/master/wqy-microhei.ttc"
+    try:
+        if not os.path.exists(FONT_FILENAME):
+            with st.spinner("首次运行正在自动为您下载中文字体库，请稍候..."):
+                urllib.request.urlretrieve(font_url, FONT_FILENAME)
+        return ImageFont.truetype(FONT_FILENAME, font_size)
+    except Exception:
+        pass
+
+    # 兜底默认字体
     return ImageFont.load_default()
 
 def add_text_to_image(img, text, font_size, text_color, stroke_color, stroke_width, pos_y_percent):
@@ -38,9 +56,9 @@ def add_text_to_image(img, text, font_size, text_color, stroke_color, stroke_wid
         try:
             bbox = font.getbbox(line)
             w = bbox[2] - bbox[0]
-            h = bbox[3] - bbox[1] + 15  # 行距加空隙
+            h = bbox[3] - bbox[1] + 20  # 行距加空隙
         except Exception:
-            w, h = font_size * len(line), font_size + 15
+            w, h = font_size * len(line), font_size + 20
         line_widths.append(w)
         line_heights.append(h)
 
@@ -94,14 +112,14 @@ def render_page():
                 actual_img_path = p
                 break
 
-        # 2. 文字内容输入（默认给姐姐预置经典示例）
+        # 2. 文字内容输入
         text_input = st.text_area(
             "2. 输入要添加的文字（支持换行）：", 
             value="之前的听力\n出报告啦", 
             height=100
         )
 
-        # 3. 风格调色盘（针对中老年表情包的黄色/红色/蓝色组合）
+        # 3. 风格调色盘
         st.write("3. 文字与描边风格设置：")
         c1, c2 = st.columns(2)
         with c1:
@@ -109,8 +127,9 @@ def render_page():
         with c2:
             stroke_color = st.color_picker("描边发光颜色", "#0000FF")  # 默认鲜艳宝蓝
 
-        font_size = st.slider("字体大小", min_value=20, max_value=120, value=65, step=5)
-        stroke_width = st.slider("描边粗细（越粗发光效果越明显）", min_value=0, max_value=20, value=8, step=1)
+        # 🌟 调整：放大了字体上限与默认初始字号
+        font_size = st.slider("字体大小", min_value=30, max_value=300, value=120, step=10)
+        stroke_width = st.slider("描边粗细（越粗发光效果越明显）", min_value=0, max_value=30, value=10, step=1)
         pos_y_percent = st.slider("文字上下位置（0=最顶，50=居中，100=最底）", min_value=0, max_value=100, value=50, step=5)
 
     with col_preview:
