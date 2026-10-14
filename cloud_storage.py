@@ -2,6 +2,7 @@ import os
 import streamlit as st
 import io
 import urllib.parse
+from datetime import datetime, timedelta
 
 try:
     from supabase import create_client
@@ -81,11 +82,25 @@ def list_supabase_files(bucket_name="zhiyebing", folder="option_1"):
             if item.get("name") and item.get("id") is not None:
                 raw_name = item["name"]
                 unquoted_name = urllib.parse.unquote(raw_name)
-                created_at = item.get("created_at", "")[:19].replace("T", " ")
+                
+                # 🌟 处理北京时间 (+8小时)
+                created_at_utc = item.get("created_at", "")[:19]
+                try:
+                    utc_dt = datetime.strptime(created_at_utc, "%Y-%m-%dT%H:%M:%S")
+                    bj_dt = utc_dt + timedelta(hours=8)
+                    created_at = bj_dt.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    created_at = created_at_utc.replace("T", " ")
+                
+                # 🌟 补全缺失的 download_url，彻底解决 KeyError 报错！
+                public_url = client.storage.from_(bucket_name).get_public_url(f"{folder}/{raw_name}")
+                download_url = f"{public_url}?download={urllib.parse.quote(unquoted_name)}"
+                
                 files_info.append({
                     "display_name": f"{unquoted_name} (上传时间: {created_at})",
                     "file_name": unquoted_name,
-                    "path": f"{folder}/{raw_name}"
+                    "path": f"{folder}/{raw_name}",
+                    "download_url": download_url  # 👈 关键修复位置
                 })
         return files_info
     except Exception as e:
@@ -103,3 +118,14 @@ def download_bytes_from_supabase(file_path, bucket_name="zhiyebing"):
             st.error(f"下载云端文件失败: {e}")
             return None
     return None
+def delete_supabase_file(file_path, bucket_name="zhiyebing"):
+    """删除云端指定文件"""
+    client = get_storage_client()
+    if client is not None:
+        try:
+            client.storage.from_(bucket_name).remove([file_path])
+            return True
+        except Exception as e:
+            st.error(f"删除云端文件失败: {e}")
+            return False
+    return False

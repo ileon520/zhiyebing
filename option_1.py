@@ -32,8 +32,15 @@ def render_page(smart_read_uploaded_file):
             chosen_display = st.selectbox("请选择要重新分析的云端原始表格：", list(options_map.keys()))
             selected_file_info = options_map[chosen_display]
 
-            # 补上下载按钮，方便姐姐直接把云端的原始表格下载到本地
-            st.markdown(f"📥 **[下载选中的云端原始文件]({selected_file_info['download_url']})**")
+            # 补上下载按钮与删除按钮
+            col_dl, col_del = st.columns([3, 2])
+            with col_dl:
+                st.markdown(f"📥 **[下载选中的云端原始文件]({selected_file_info['download_url']})**")
+            with col_del:
+                if st.checkbox("⚠️ 确认删除此表格？", key="chk_raw"):
+                    if st.button("🗑️ 立即删除", key="del_raw"):
+                        cloud_storage.delete_supabase_file(selected_file_info["path"])
+                        st.rerun() # 删除后立刻刷新页面
 
             # 从云端下载字节流供 Python 读取分析
             file_bytes = cloud_storage.download_bytes_from_supabase(selected_file_info["path"])
@@ -97,11 +104,17 @@ def render_page(smart_read_uploaded_file):
     if result_cloud_files:
         with st.expander("📜 查看/下载以前自动保存过的云端 TXT 描述结果", expanded=False):
             for res_file in result_cloud_files:
-                col_name, col_btn = st.columns([3, 1])
+                col_name, col_btn, col_del = st.columns([5, 2, 3])
                 with col_name:
                     st.write(f"📄 {res_file['display_name']}")
                 with col_btn:
                     st.markdown(f"📥 **[点击下载]({res_file['download_url']})**")
+                with col_del:
+                    # 两步防误触安全删除
+                    if st.checkbox("确认删除?", key=f"chk_{res_file['path']}"):
+                        if st.button("🗑️ 永久删除", key=f"del_{res_file['path']}"):
+                            cloud_storage.delete_supabase_file(res_file["path"])
+                            st.rerun()
     
     # 增加的示例展示区
     st.divider()
