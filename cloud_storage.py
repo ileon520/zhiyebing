@@ -39,7 +39,7 @@ def upload_bytes_to_supabase(
 
       # 安全清理文件名：只保留字母、数字、下划线、横杠和点，避免出现 % 导致 Supabase 报 InvalidKey
       name_part, ext_part = os.path.splitext(file_name)
-      safe_name = re.sub(r'[^\w\-]', '_', name_part)
+      safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', name_part)
       safe_file_name = (
           f"{safe_name}{ext_part}" if safe_name else f"file{ext_part}"
       )
