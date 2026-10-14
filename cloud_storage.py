@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 import io
+import urllib.parse
 
 try:
     from supabase import create_client
@@ -27,26 +28,73 @@ def get_storage_client():
     except Exception:
         return None
 
-def upload_bytes_to_supabase(file_bytes, file_name, bucket_name="zhiyebing"):
-    """将字节流（如 Excel 或 TXT）上传到 Supabase 并返回公开下载链接"""
+def upload_bytes_to_supabase(
+    file_bytes, file_name, bucket_name="zhiyebing", folder="option_1"
+):  # 👈 【改动1】：末尾加上了 , folder="option_1"
+  """将字节流（如 Excel 或 TXT）上传到 Supabase 并返回公开下载链接"""
+  client = get_storage_client()
+  if client is not None:
+    try:
+      # 插入的 2 行代码如下：
+      safe_file_name = urllib.parse.quote(
+          file_name
+      )  # 👈 【插入行1】：把文件名转为安全字符，解决 InvalidKey 报错
+      full_path = f"{folder}/{safe_file_name}"  # 👈 【插入行2】：加上文件夹隔离路径
+
+      client.storage.from_(bucket_name).upload(
+          path=full_path,  # 👈 【改动2】：原本的 path=file_name 改成了 path=full_path
+          file=file_bytes,
+          file_options={"upsert": "true"},
+      )
+      public_url = client.storage.from_(bucket_name).get_public_url(
+          full_path
+      )  # 👈 【改动3】：原本的 file_name 改成了 full_path
+      return public_url
+    except Exception as e:
+      st.error(f"上传到 Supabase 失败: {e}")
+      return None
+  else:
+    # 降级本地保存
+    local_dir = os.path.join(
+        "local_data", folder
+    )  # 👈 【改动4】：本地路径也按文件夹隔离
+    os.makedirs(local_dir, exist_ok=True)
+    local_path = os.path.join(local_dir, file_name)
+    with open(local_path, "wb") as f:
+      f.write(file_bytes)
+    return local_path
+
+def list_supabase_files(bucket_name="zhiyebing", folder="option_1"):
+    """获取指定选项文件夹下的所有云端历史文件列表"""
+    client = get_storage_client()
+    if client is None:
+        return []
+    try:
+        res = client.storage.from_(bucket_name).list(folder)
+        files_info = []
+        for item in res:
+            if item.get("name") and item.get("id") is not None:
+                raw_name = item["name"]
+                unquoted_name = urllib.parse.unquote(raw_name)
+                created_at = item.get("created_at", "")[:19].replace("T", " ")
+                files_info.append({
+                    "display_name": f"{unquoted_name} (上传时间: {created_at})",
+                    "file_name": unquoted_name,
+                    "path": f"{folder}/{raw_name}"
+                })
+        return files_info
+    except Exception as e:
+        st.error(f"读取云端文件列表失败: {e}")
+        return []
+
+def download_bytes_from_supabase(file_path, bucket_name="zhiyebing"):
+    """从 Supabase 下载文件并返回 Bytes 字节流"""
     client = get_storage_client()
     if client is not None:
         try:
-            client.storage.from_(bucket_name).upload(
-                path=file_name,
-                file=file_bytes,
-                file_options={"upsert": "true"}
-            )
-            public_url = client.storage.from_(bucket_name).get_public_url(file_name)
-            return public_url
+            data = client.storage.from_(bucket_name).download(file_path)
+            return data
         except Exception as e:
-            st.error(f"上传到 Supabase 失败: {e}")
+            st.error(f"下载云端文件失败: {e}")
             return None
-    else:
-        # 降级本地保存
-        local_dir = "local_data"
-        os.makedirs(local_dir, exist_ok=True)
-        local_path = os.path.join(local_dir, file_name)
-        with open(local_path, "wb") as f:
-            f.write(file_bytes)
-        return local_path
+    return None

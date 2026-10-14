@@ -14,9 +14,29 @@ def render_page(smart_read_uploaded_file):
     st.title("📊 选项 1：Excel 异常检出率分析与 TXT 导出")
     st.write("拖入任意 Excel 表格（包含“项目”、“检查人数”、“异常人数”列即可）：")
     uploaded_file = st.file_uploader("点击或拖入上传 Excel 文件", type=["xlsx", "xls"])
+    # ☁️ 读取选项 1 的云端历史文件列表
+    cloud_files = cloud_storage.list_supabase_files(folder="option_1")
+    selected_cloud_file = None
+    if cloud_files:
+        with st.expander("☁️ 查看/选择以前上传过的云端文件", expanded=False):
+            options_map = {f["display_name"]: f for f in cloud_files}
+            chosen_display = st.selectbox(
+                "选择已保存的文件重新处理：",
+                ["-- 不选择（上传新文件） --"] + list(options_map.keys())
+            )
+            if chosen_display != "-- 不选择（上传新文件） --":
+                selected_cloud_file = options_map[chosen_display]
+    file_to_process = None
     if uploaded_file is not None:
+        file_to_process = uploaded_file
+    elif selected_cloud_file is not None:
+        file_bytes = cloud_storage.download_bytes_from_supabase(selected_cloud_file["path"])
+        if file_bytes:
+            file_to_process = io.BytesIO(file_bytes)
+            file_to_process.name = selected_cloud_file["file_name"]
+    if file_to_process is not None:
         try:
-            df = smart_read_uploaded_file(uploaded_file)
+            df = smart_read_uploaded_file(file_to_process)
             df.columns = df.columns.str.strip()
             with st.expander(" 点击展开预览 Excel 表格内容", expanded=True):
                 st.dataframe(df.head(10), use_container_width=True)
@@ -50,7 +70,7 @@ def render_page(smart_read_uploaded_file):
             st.markdown("###  生成的描述文本预览：")
             st.text_area("生成文本内容（已自动首行缩进）", full_content, height=250)
             
-            export_name = uploaded_file.name.rsplit('.', 1)[0] + "_描述.txt"
+            export_name = file_to_process.name.rsplit('.', 1)[0] + "_描述.txt"
             st.download_button(" 点击下载生成的 TXT 文本文件", data=full_content.encode('utf-8'), file_name=export_name, mime="text/plain")
         except Exception as e:
             st.error(f"处理文件时出错，请检查 Excel 列名！具体错误信息: {e}")
@@ -116,9 +136,8 @@ def render_page(smart_read_uploaded_file):
     st.text_area("生成的文本成品预览（支持直接复制）", result_text, height=350)
 
     
-    # 💡 如果想在下载按钮旁边加一个“存入云端”的功能，可以在生成完 file_bytes 后这样写：
     if st.button("☁️ 保存至 Supabase 云端"):
-        url = cloud_storage.upload_bytes_to_supabase(file_bytes, "文件名.txt")
-        if url:
-            st.success("存入成功！")
-            st.markdown(f"[点击下载云端文件]({url})")
+    url = cloud_storage.upload_bytes_to_supabase(full_content.encode('utf-8'), export_name, folder="option_1")
+    if url:
+        st.success("存入成功！")
+        st.markdown(f"[点击下载云端文件]({url})")
