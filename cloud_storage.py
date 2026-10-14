@@ -35,11 +35,15 @@ def upload_bytes_to_supabase(
   client = get_storage_client()
   if client is not None:
     try:
-      # 插入的 2 行代码如下：
-      safe_file_name = urllib.parse.quote(
-          file_name
-      )  # 👈 【插入行1】：把文件名转为安全字符，解决 InvalidKey 报错
-      full_path = f"{folder}/{safe_file_name}"  # 👈 【插入行2】：加上文件夹隔离路径
+      import re
+
+      # 安全清理文件名：只保留字母、数字、下划线、横杠和点，避免出现 % 导致 Supabase 报 InvalidKey
+      name_part, ext_part = os.path.splitext(file_name)
+      safe_name = re.sub(r'[^\w\-]', '_', name_part)
+      safe_file_name = (
+          f"{safe_name}{ext_part}" if safe_name else f"file{ext_part}"
+      )
+      full_path = f"{folder}/{safe_file_name}"
 
       client.storage.from_(bucket_name).upload(
           path=full_path,  # 👈 【改动2】：原本的 path=file_name 改成了 path=full_path

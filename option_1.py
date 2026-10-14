@@ -70,10 +70,24 @@ def render_page(smart_read_uploaded_file):
             st.markdown("###  生成的描述文本预览：")
             st.text_area("生成文本内容（已自动首行缩进）", full_content, height=250)
             
-            export_name = file_to_process.name.rsplit('.', 1)[0] + "_描述.txt"
-            st.download_button(" 点击下载生成的 TXT 文本文件", data=full_content.encode('utf-8'), file_name=export_name, mime="text/plain")
+            export_name = file_to_process.name.rsplit(".", 1)[0] + "_描述.txt"
+            st.download_button(
+                " 点击下载生成的 TXT 文本文件",
+                data=full_content.encode("utf-8"),
+                file_name=export_name,
+                mime="text/plain",
+            )
+
+            # ☁️ 正确的云端保存按钮（保持在 try 内部，注意缩进）
+            if st.button("☁️ 保存至 Supabase 云端"):
+              url = cloud_storage.upload_bytes_to_supabase(
+                  full_content.encode("utf-8"), export_name, folder="option_1"
+              )
+              if url:
+                st.success("存入成功！")
+                st.markdown(f"[点击下载云端文件]({url})")
         except Exception as e:
-            st.error(f"处理文件时出错，请检查 Excel 列名！具体错误信息: {e}")
+          st.error(f"处理文件时出错，请检查 Excel 列名！具体错误信息: {e}")
     # 增加的示例展示区
     st.divider()
     st.subheader("💡 填写示例与说明")
@@ -134,10 +148,3 @@ def render_page(smart_read_uploaded_file):
   神经内科：实检44人均未检出异常。"""
 
     st.text_area("生成的文本成品预览（支持直接复制）", result_text, height=350)
-
-    
-    if st.button("☁️ 保存至 Supabase 云端"):
-    url = cloud_storage.upload_bytes_to_supabase(full_content.encode('utf-8'), export_name, folder="option_1")
-    if url:
-        st.success("存入成功！")
-        st.markdown(f"[点击下载云端文件]({url})")
