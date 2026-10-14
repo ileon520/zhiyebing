@@ -13,27 +13,35 @@ def render_page(smart_read_uploaded_file):
 # --- 选项 1：报告书百分比转文字 界面 ---
     st.title("📊 选项 1：Excel 异常检出率分析与 TXT 导出")
     st.write("拖入任意 Excel 表格（包含“项目”、“检查人数”、“异常人数”列即可）：")
-    uploaded_file = st.file_uploader("点击或拖入上传 Excel 文件", type=["xlsx", "xls"])
-    # ☁️ 读取选项 1 的云端历史文件列表
-    cloud_files = cloud_storage.list_supabase_files(folder="option_1")
-    selected_cloud_file = None
-    if cloud_files:
-        with st.expander("☁️ 查看/选择以前上传过的云端文件", expanded=False):
-            options_map = {f["display_name"]: f for f in cloud_files}
-            chosen_display = st.selectbox(
-                "选择已保存的文件重新处理：",
-                ["-- 不选择（上传新文件） --"] + list(options_map.keys())
-            )
-            if chosen_display != "-- 不选择（上传新文件） --":
-                selected_cloud_file = options_map[chosen_display]
+    # 🌟 1. 顶部提供选择方式：本地上传 OR 选择云端已存原始表格
+    source_type = st.radio("请选择文件来源：", ["📁 上传本地 Excel 文件", "☁️ 选择云端历史原始表格"], horizontal=True)
+
     file_to_process = None
-    if uploaded_file is not None:
-        file_to_process = uploaded_file
-    elif selected_cloud_file is not None:
-        file_bytes = cloud_storage.download_bytes_from_supabase(selected_cloud_file["path"])
-        if file_bytes:
-            file_to_process = io.BytesIO(file_bytes)
-            file_to_process.name = selected_cloud_file["file_name"]
+
+    if source_type == "📁 上传本地 Excel 文件":
+        uploaded_file = st.file_uploader("点击或拖入上传 Excel 文件", type=["xlsx", "xls"], key="opt1_local")
+        if uploaded_file is not None:
+            file_to_process = uploaded_file
+            # 自动备份原始文件到云端 option_1/raw
+            cloud_storage.upload_bytes_to_supabase(uploaded_file.getvalue(), uploaded_file.name, folder="option_1/raw")
+    else:
+        # 🌟 只读取原始表格目录 option_1/raw，避免读取到 txt 结果文件导致预览错乱
+        raw_cloud_files = cloud_storage.list_supabase_files(folder="option_1/raw")
+        if raw_cloud_files:
+            options_map = {f["display_name"]: f for f in raw_cloud_files}
+            chosen_display = st.selectbox("请选择要重新分析的云端原始表格：", list(options_map.keys()))
+            selected_file_info = options_map[chosen_display]
+
+            # 补上下载按钮，方便姐姐直接把云端的原始表格下载到本地
+            st.markdown(f"📥 **[下载选中的云端原始文件]({selected_file_info['download_url']})**")
+
+            # 从云端下载字节流供 Python 读取分析
+            file_bytes = cloud_storage.download_bytes_from_supabase(selected_file_info["path"])
+            if file_bytes:
+                file_to_process = io.BytesIO(file_bytes)
+                file_to_process.name = selected_file_info["file_name"]
+        else:
+            st.info("☁️ 云端暂无备份的原始表格，请先从本地上传~")
     if file_to_process is not None:
         try:
             df = smart_read_uploaded_file(file_to_process)
@@ -71,23 +79,30 @@ def render_page(smart_read_uploaded_file):
             st.text_area("生成文本内容（已自动首行缩进）", full_content, height=250)
             
             export_name = file_to_process.name.rsplit(".", 1)[0] + "_描述.txt"
-            st.download_button(
-                " 点击下载生成的 TXT 文本文件",
-                data=full_content.encode("utf-8"),
-                file_name=export_name,
-                mime="text/plain",
+            result_bytes = full_content.encode("utf-8")
+            
+            # 自动保存结果文件（存入 option_1/result 目录）
+            result_cloud_url = cloud_storage.upload_bytes_to_supabase(
+                result_bytes, 
+                export_name, 
+                folder="option_1/result"
             )
 
-            # ☁️ 正确的云端保存按钮（保持在 try 内部，注意缩进）
-            if st.button("☁️ 保存至 Supabase 云端"):
-              url = cloud_storage.upload_bytes_to_supabase(
-                  full_content.encode("utf-8"), export_name, folder="option_1"
-              )
-              if url:
-                st.success("存入成功！")
-                st.markdown(f"[点击下载云端文件]({url})")
+            st.success("🎉 分析完成！结果已自动保存至云端。")
+            st.markdown(f"📥 **[点击直接下载分析结果 TXT 文件]({result_cloud_url})**")
         except Exception as e:
           st.error(f"处理文件时出错，请检查 Excel 列名！具体错误信息: {e}")
+    # 🌟 2. 底部增加折叠框：专门用来查看和下载以前生成过的 TXT 分析结果历史
+    result_cloud_files = cloud_storage.list_supabase_files(folder="option_1/result")
+    if result_cloud_files:
+        with st.expander("📜 查看/下载以前自动保存过的云端 TXT 描述结果", expanded=False):
+            for res_file in result_cloud_files:
+                col_name, col_btn = st.columns([3, 1])
+                with col_name:
+                    st.write(f"📄 {res_file['display_name']}")
+                with col_btn:
+                    st.markdown(f"📥 **[点击下载]({res_file['download_url']})**")
+    
     # 增加的示例展示区
     st.divider()
     st.subheader("💡 填写示例与说明")
