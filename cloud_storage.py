@@ -50,10 +50,11 @@ def upload_bytes_to_supabase(
           file=file_bytes,
           file_options={"upsert": "true"},
       )
-      public_url = client.storage.from_(bucket_name).get_public_url(
-          full_path
-      )  # 👈 【改动3】：原本的 file_name 改成了 full_path
-      return public_url
+      # 👇 注意这里必须用 full_path，才能获取到正确的云端文件
+      public_url = client.storage.from_(bucket_name).get_public_url(full_path)
+      # 👇 强制浏览器直接下载，并恢复姐姐原本好看的中文文件名
+      download_url = f"{public_url}?download={urllib.parse.quote(file_name)}"
+      return download_url
     except Exception as e:
       st.error(f"上传到 Supabase 失败: {e}")
       return None
