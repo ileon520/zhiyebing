@@ -261,4 +261,25 @@ def render_page(smart_read_uploaded_file, get_pinyin_sort_key, API_CONFIGS, chec
             "1. 肥胖：控制饮食和总摄入热量，适当增加运动量，建议营养门诊就诊。2. 高血压2级：规律作息，低盐低脂饮食，建议心血管内科就诊。"
         ]
     })
-    st.dataframe(example_input_df, use_container_width=True)
+    st.dataframe(example_t2_df, use_container_width=True)
+
+    st.write("**4. 生成的【表格 3】与【表格 4】示例：**")
+    col_ex1, col_ex2 = st.columns(2)
+    with col_ex1:
+        st.caption("表格 3：个体结论统计表")
+        example_t3_df = pd.DataFrame({
+            "体检类别": ["上岗", "在岗", "在岗"],
+            "职业病危害因素名称": ["丙酮", "噪声", "苯、甲苯、二甲苯"],
+            "应检人数": [2, 32, 22]
+        })
+        st.dataframe(example_t3_df, use_container_width=True)
+    with col_ex2:
+        st.caption("表格 4：职业健康检查对象")
+        example_t4_df = pd.DataFrame({
+            "体检类别": ["上岗前", "在岗期间"],
+            "车间": ["计量检试中心", "物资供应部"],
+            "工种": ["环境试验工", "下料工"],
+            "职业病危害因素名称": ["噪声", "噪声"],
+            "委托人数": [2, 2]
+        })
+        st.dataframe(example_t4_df, use_container_width=True)
