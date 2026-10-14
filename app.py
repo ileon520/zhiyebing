@@ -3,7 +3,8 @@ import pandas as pd
 import socket
 from openai import OpenAI
 
-# 导入各个拆分出去的独立 py 模块
+# 导入所有拆分出去的独立模块
+import ui_components
 import option_image
 import option_1
 import option_2
@@ -75,6 +76,7 @@ def call_ai_api(provider_name, model_name, messages, use_gbz=False):
     response = client.chat.completions.create(model=model_name, messages=messages)
     return response.choices[0].message.content
 
+# 菜单总目录配置
 APP_OPTIONS = [
     {"name": " 首页控制台", "tags": ["#导航", "#首页"], "desc": "返回主控制台首页"},
     {"name": " 选项 1：报告书百分比转文字", "tags": ["#报告书", "#百分比"], "desc": "异常检出率分析与 TXT 导出"},
@@ -92,9 +94,10 @@ if "current_page" not in st.session_state:
 def go_to_page(page_name):
     st.session_state.current_page = page_name
 
-st.sidebar.title("⚙️ 设置与导航")
-menu_choice = st.sidebar.radio("📌 请选择功能：", [opt["name"] for opt in APP_OPTIONS], key="current_page")
+# 调用独立组件：渲染配色、搜索、侧边栏导航
+menu_choice = ui_components.render_sidebar_and_navigation(APP_OPTIONS)
 
+# 页面内容路由分发
 if menu_choice == " 首页控制台":
     st.title("✨ 职业病专属工作台（云端存储增强版）")
     st.write("点击下方按钮进入工作区域：")
