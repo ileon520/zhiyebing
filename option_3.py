@@ -52,8 +52,17 @@ def render_page(smart_read_uploaded_file, get_pinyin_sort_key, API_CONFIGS, chec
     uploaded_file = st.file_uploader("点击或拖入上传 Excel 文件", type=["xlsx", "xls"], key="opt3_upload")
 
     if uploaded_file is not None:
-        # 点击生成按钮：优先处理毫秒级的表1、3、4
-        if st.button("🚀 开始处理并生成选中的表格", use_container_width=True):
+        # 🌟 新增：增加两种模式的按钮（并排放置）
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            btn_fast = st.button("🚀 网页在线处理（适合几个人，需开着网页等）", use_container_width=True)
+        with col_btn2:
+            btn_cloud = st.button("☁️ 云端挂机处理（适合几百人，点完可关网页）", type="primary", use_container_width=True)
+
+        # 只要点了任意一个按钮，就触发处理逻辑
+        if btn_fast or btn_cloud:
+            # 记录当前选择的模式，后续备用
+            st.session_state.opt3_run_mode = "cloud" if btn_cloud else "fast"
             try:
                 df = smart_read_uploaded_file(uploaded_file)
                 # 🌟 修复点1：清理列名首尾的所有隐形空格
@@ -156,6 +165,12 @@ def render_page(smart_read_uploaded_file, get_pinyin_sort_key, API_CONFIGS, chec
                 st.session_state.opt3_t2_done = False
                 st.session_state.opt3_full_buffer = None
                 st.session_state.opt3_output_sheets = None
+                
+                # 🌟 新增：如果点击的是“网页在线处理”，且需要生成表2，才触发刷新让下方代码接续执行
+                if st.session_state.opt3_run_mode == "fast" and gen_t2:
+                    st.rerun()
+                elif st.session_state.opt3_run_mode == "cloud":
+                    st.info("☁️ 云端挂机任务已提交！姐姐现在可以关掉网页了，稍后请去底部的【历史记录】中下载结果。")
 
             except Exception as e:
                 st.error(f"处理文件出错啦！详细错误信息：{e}")
@@ -164,8 +179,8 @@ def render_page(smart_read_uploaded_file, get_pinyin_sort_key, API_CONFIGS, chec
     # 🌟 核心架构：【基础表格下载区】与【AI 运行区】独立悬挂在外，刷新不丢失
     # =========================================================================
 
-    # 第一块：基础表格（表 1、3、4）优先下载区
-    if st.session_state.opt3_fast_buffer is not None:
+    # 第一块：基础表格（表 1、3、4）优先下载区 (仅限网页模式或无需表2时显示)
+    if st.session_state.opt3_fast_buffer is not None and (not gen_t2 or getattr(st.session_state, "opt3_run_mode", "fast") == "fast"):
         st.divider()
         st.subheader("⚡ 基础表格（表1、3、4）已就绪，可直接下载")
         st.download_button(
@@ -183,7 +198,8 @@ def render_page(smart_read_uploaded_file, get_pinyin_sort_key, API_CONFIGS, chec
                     st.dataframe(s_df, use_container_width=True)
 
     # 第二块：AI 表格 2 处理区（自动接续运行，不干扰上方下载）
-    if gen_t2 and st.session_state.opt3_df is not None:
+    # 🌟 修改：只有在“网页模式”下，才在页面上实时展示 AI 进度条
+    if gen_t2 and st.session_state.opt3_df is not None and getattr(st.session_state, "opt3_run_mode", "fast") == "fast":
         st.divider()
         st.subheader("🤖 表格 2：AI 阳性医学建议生成中")
 
