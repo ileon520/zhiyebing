@@ -180,6 +180,11 @@ def render_page():
                 actual_img_path = p
                 break
 
+        # 🌟 新增：独立展示选中的背景素材原图（不带字）
+        if actual_img_path:
+            with st.expander("📷 查看选中的背景素材原图（纯背景）", expanded=True):
+                st.image(actual_img_path, caption="当前选择的背景原图", use_container_width=True)
+
         # 🌟 整体行间距控制滑块
         global_line_gap = st.slider(
             "📏 整体行间距（往左拉紧凑，往右拉稀疏）", 
@@ -271,32 +276,47 @@ def render_page():
                 st.rerun()
 
     with col_preview:
-        st.subheader("🖼️ 表情包效果预览")
-        
-        # 🌟 1. 增加点击生成按钮
-        btn_generate = st.button("🚀 点击生成/更新预览图", type="primary", use_container_width=True)
+        st.subheader("👀 效果预览与生成区")
         
         if actual_img_path:
-            # 当点击生成按钮时，才真正触发图片合成
+            # 🌟 1. 独立框：文字排版、大小与配色实时预览框（使用深灰底板，方便清晰看字号和描边）
+            st.markdown("#### ✍️ 1. 文字字号与配色实时排版框")
+            try:
+                base_img = Image.open(actual_img_path)
+                # 创建与背景图同等尺寸的纯色底板，专门用来实时展示文字的大小和样式
+                preview_canvas = Image.new("RGB", base_img.size, "#222222")
+                text_preview_img = add_multi_text_to_image(
+                    preview_canvas, 
+                    st.session_state.text_items, 
+                    global_line_gap=global_line_gap
+                )
+                st.image(text_preview_img, caption="实时文字排版、大小与配色展示（不含背景花纹）", use_container_width=True)
+            except Exception as e:
+                st.error(f"文字预览渲染失败：{e}")
+
+            st.divider()
+
+            # 🌟 2. 独立框：图文最终合体生成与下载
+            st.markdown("#### 🖼️ 2. 最终图文合体表情包")
+            btn_generate = st.button("🚀 点击生成/更新合成表情包", type="primary", use_container_width=True)
+            
             if btn_generate:
                 try:
-                    with st.spinner("正在合成高清大字表情包..."):
+                    with st.spinner("正在将背景图与大字一键合体合成中..."):
                         base_img = Image.open(actual_img_path)
                         res_img = add_multi_text_to_image(
                             base_img, 
                             st.session_state.text_items, 
                             global_line_gap=global_line_gap
                         )
-                        
                         buf = io.BytesIO()
                         res_img.save(buf, format="JPEG", quality=95)
                         st.session_state.opt4_preview_bytes = buf.getvalue()
                 except Exception as e:
-                    st.error(f"处理图片时出错：{e}")
+                    st.error(f"合成表情包失败：{e}")
 
-            # 🌟 2. 如果已经生成了图片，就展示效果与下载按钮；未生成则给出提示
             if st.session_state.opt4_preview_bytes is not None:
-                st.image(st.session_state.opt4_preview_bytes, caption="当前生成的表情包样式", use_container_width=True)
+                st.image(st.session_state.opt4_preview_bytes, caption="最终合成的图文表情包", use_container_width=True)
                 st.download_button(
                     label="📥 点击一键保存/下载高清表情包",
                     data=st.session_state.opt4_preview_bytes,
@@ -305,6 +325,6 @@ def render_page():
                     use_container_width=True
                 )
             else:
-                st.info("👈 请在左侧调整好文字与参数后，点击上方【🚀 点击生成/更新预览图】按钮查看效果。")
+                st.info("💡 在左侧选好背景、上方看好字号大小后，点击【🚀 点击生成/更新合成表情包】即可看到完整合体成果并下载！")
         else:
             st.warning("⚠️ 未找到对应的图片文件！请确保已经把 `flower01.jpg` ~ `flower04.jpg` 上传到了 GitHub 的 `images/` 文件夹中。")
