@@ -8,11 +8,46 @@ def render_page(smart_read_uploaded_file):
     st.title("📊 选项 2：疾控月报表自动统计")
     st.write("可以直接把省平台下载的Excel表格上传，也可以只保留【用工单位名称】和【体检危害因素名称】这2列再上传：")
     
-    uploaded_file = st.file_uploader("点击或拖入上传 Excel 文件", type=["xlsx", "xls"], key="cdc_upload")
-    
-    if uploaded_file is not None:
+    # 🌟 1. 顶部提供选择方式：本地上传 OR 选择云端已存原始表格
+    source_type = st.radio("请选择文件来源：", ["📁 上传本地 Excel 文件", "☁️ 选择云端历史原始表格"], horizontal=True)
+
+    file_to_process = None
+
+    if source_type == "📁 上传本地 Excel 文件":
+        uploaded_file = st.file_uploader("点击或拖入上传 Excel 文件", type=["xlsx", "xls"], key="opt2_local")
+        if uploaded_file is not None:
+            file_to_process = uploaded_file
+            # 自动备份原始文件到云端 option_2/raw
+            cloud_storage.upload_bytes_to_supabase(uploaded_file.getvalue(), uploaded_file.name, folder="option_2/raw")
+    else:
+        # 🌟 只读取原始表格目录 option_2/raw
+        raw_cloud_files = cloud_storage.list_supabase_files(folder="option_2/raw")
+        if raw_cloud_files:
+            options_map = {f["display_name"]: f for f in raw_cloud_files}
+            chosen_display = st.selectbox("请选择要重新分析的云端原始表格：", list(options_map.keys()))
+            selected_file_info = options_map[chosen_display]
+
+            # 补上下载按钮与删除按钮
+            col_dl, col_del = st.columns([3, 2])
+            with col_dl:
+                st.markdown(f"📥 **[下载选中的云端原始文件]({selected_file_info['download_url']})**")
+            with col_del:
+                if st.checkbox("⚠️ 确认删除此表格？", key="chk_raw_2"):
+                    if st.button("🗑️ 立即删除", key="del_raw_2"):
+                        cloud_storage.delete_supabase_file(selected_file_info["path"])
+                        st.rerun() # 删除后立刻刷新页面
+
+            # 从云端下载字节流供 Python 读取分析
+            file_bytes = cloud_storage.download_bytes_from_supabase(selected_file_info["path"])
+            if file_bytes:
+                file_to_process = io.BytesIO(file_bytes)
+                file_to_process.name = selected_file_info["file_name"]
+        else:
+            st.info("☁️ 云端暂无备份的原始表格，请先从本地上传~")
+
+    if file_to_process is not None:
         try:
-            df = smart_read_uploaded_file(uploaded_file)
+            df = smart_read_uploaded_file(file_to_process)
             df = df.dropna(subset=['用工单位名称', '体检危害因素名称'])
             
             # 显示读取成功提示
