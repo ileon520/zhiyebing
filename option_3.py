@@ -221,7 +221,41 @@ def render_page(smart_read_uploaded_file, get_pinyin_sort_key, API_CONFIGS, chec
                 if st.session_state.opt3_run_mode == "fast" and gen_t2:
                     st.rerun()
                 elif st.session_state.opt3_run_mode == "cloud":
-                    st.info("☁️ 云端挂机任务已提交！姐姐现在可以关掉网页了，稍后请去底部的【历史记录】中下载结果。")
+                    import json
+                    from datetime import datetime
+
+                    # 🌟 1. 确保原始 Excel 文件已上传备份至云端 option_3/raw 目录
+                    raw_path = f"option_3/raw/{uploaded_file.name}"
+                    if hasattr(uploaded_file, "seek"):
+                        uploaded_file.seek(0)
+                    file_bytes = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
+                    cloud_storage.upload_bytes_to_supabase(file_bytes, uploaded_file.name, folder="option_3/raw")
+
+                    # 🌟 2. 自动生成挂机任务清单（JSON），写入 Supabase 的 option_3/tasks 目录
+                    task_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    task_info = {
+                        "task_id": task_id,
+                        "file_name": uploaded_file.name,
+                        "raw_path": raw_path,
+                        "gen_t1": gen_t1,
+                        "gen_t2": gen_t2,
+                        "gen_t3": gen_t3,
+                        "gen_t4": gen_t4,
+                        "provider": opt3_provider if gen_t2 else "",
+                        "model": opt3_model if gen_t2 else "",
+                        "status": "pending",  # 状态标志：排队中
+                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+
+                    task_bytes = json.dumps(task_info, ensure_ascii=False, indent=2).encode('utf-8')
+                    cloud_storage.upload_bytes_to_supabase(
+                        task_bytes,
+                        file_name=f"task_{task_id}.json",
+                        folder="option_3/tasks"
+                    )
+
+                    st.success(f"🎉 挂机任务【task_{task_id}】已成功提交至云端！")
+                    st.info("☁️ 任务已交给云端后台排队处理。姐姐现在可以放心关掉网页啦，稍后去底部的【历史记录】中直接下载结果即可！")
 
             except Exception as e:
                 st.error(f"处理文件出错啦！详细错误信息：{e}")
