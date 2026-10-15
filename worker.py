@@ -4,7 +4,7 @@ import io
 import pandas as pd
 import cloud_storage
 # 引入基础解析与 AI 通用调用函数
-from app_4 import smart_read_uploaded_file, get_pinyin_sort_key, call_ai_api
+from app import smart_read_uploaded_file, get_pinyin_sort_key, call_ai_api
 
 def process_single_task(task_info, t_file_path):
     """处理单个挂机任务的完整 AI 逻辑"""
