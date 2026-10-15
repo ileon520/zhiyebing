@@ -296,10 +296,11 @@ def render_page():
             st.markdown("#### ✍️ 1. 文字字号与配色实时排版框")
             try:
                 base_img = Image.open(actual_img_path)
-                # 🌟 计算轻量化底板尺寸（缩放至 35% 像素），大大减轻计算量
-                fast_w = max(300, int(base_img.width * 0.35))
-                fast_h = max(300, int(base_img.height * 0.35))
-                scale_ratio = 0.35
+                # 🌟 极速飞升：锁定为 200 像素微型羽量画布（渲染速度瞬间再飙升 10 倍！）
+                target_preview_w = 200.0
+                scale_ratio = target_preview_w / base_img.width if base_img.width > target_preview_w else 1.0
+                fast_w = max(100, int(base_img.width * scale_ratio))
+                fast_h = max(100, int(base_img.height * scale_ratio))
 
                 # 同步按比例缩放字号、描边与行间距进行极速绘制
                 fast_items = []
