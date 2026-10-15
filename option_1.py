@@ -55,52 +55,52 @@ def render_page(smart_read_uploaded_file):
             try:
                 df = smart_read_uploaded_file(file_to_process)
                 df.columns = df.columns.str.strip()
-            with st.expander(" 点击展开预览 Excel 表格内容", expanded=True):
-                st.dataframe(df.head(10), use_container_width=True)
-            
-            data_list = []
-            for index, row in df.iterrows():
-                proj = str(row['项目']).strip()
-                total = int(row['检查人数'])
-                abnormal = int(row['异常人数'])
-                rate_val = (abnormal / total * 100) if total > 0 else 0.0
-                data_list.append({'proj': proj, 'total': total, 'abnormal': abnormal, 'rate_val': rate_val})
+                with st.expander(" 点击展开预览 Excel 表格内容", expanded=True):
+                    st.dataframe(df.head(10), use_container_width=True)
+                
+                data_list = []
+                for index, row in df.iterrows():
+                    proj = str(row['项目']).strip()
+                    total = int(row['检查人数'])
+                    abnormal = int(row['异常人数'])
+                    rate_val = (abnormal / total * 100) if total > 0 else 0.0
+                    data_list.append({'proj': proj, 'total': total, 'abnormal': abnormal, 'rate_val': rate_val})
 
-            sorted_data = sorted(data_list, key=lambda x: x['rate_val'], reverse=True)
-            groups = defaultdict(list)
-            for item in sorted_data:
-                rate_key = "0" if item['rate_val'] == 0 else f"{item['rate_val']:.2f}%"
-                groups[rate_key].append(item['proj'])
+                sorted_data = sorted(data_list, key=lambda x: x['rate_val'], reverse=True)
+                groups = defaultdict(list)
+                for item in sorted_data:
+                    rate_key = "0" if item['rate_val'] == 0 else f"{item['rate_val']:.2f}%"
+                    groups[rate_key].append(item['proj'])
 
-            part1_segments = [f"{'、'.join(projs)}异常检出率为{rate_key}" for rate_key, projs in groups.items()]
-            part1_text = "\u3000\u3000第一部分：\n\u3000\u3000" + "，".join(part1_segments) + "。"
+                part1_segments = [f"{'、'.join(projs)}异常检出率为{rate_key}" for rate_key, projs in groups.items()]
+                part1_text = "\u3000\u3000第一部分：\n\u3000\u3000" + "，".join(part1_segments) + "。"
 
-            part2_lines = ["\u3000\u3000第二部分："]
-            for item in data_list:
-                if item['abnormal'] == 0:
-                    part2_lines.append(f"\u3000\u3000{item['proj']}：实检{item['total']}人均未检出异常。")
-                else:
-                    rate_str = f"{item['rate_val']:.2f}%"
-                    part2_lines.append(f"\u3000\u3000{item['proj']}：实检{item['total']}人，检出异常{item['abnormal']}例，占受检人数异常检出率{rate_str}，{item['abnormal']}例与目前所从事职业无相关联系，在《个人职业健康检查结果》中已给出相应的处理意见。")
+                part2_lines = ["\u3000\u3000第二部分："]
+                for item in data_list:
+                    if item['abnormal'] == 0:
+                        part2_lines.append(f"\u3000\u3000{item['proj']}：实检{item['total']}人均未检出异常。")
+                    else:
+                        rate_str = f"{item['rate_val']:.2f}%"
+                        part2_lines.append(f"\u3000\u3000{item['proj']}：实检{item['total']}人，检出异常{item['abnormal']}例，占受检人数异常检出率{rate_str}，{item['abnormal']}例与目前所从事职业无相关联系，在《个人职业健康检查结果》中已给出相应的处理意见。")
 
-            full_content = part1_text + "\n\n" + "\n".join(part2_lines)
-            st.markdown("###  生成的描述文本预览：")
-            st.text_area("生成文本内容（已自动首行缩进）", full_content, height=250)
-            
-            export_name = file_to_process.name.rsplit(".", 1)[0] + "_描述.txt"
-            result_bytes = full_content.encode("utf-8")
-            
-            # 自动保存结果文件（存入 option_1/result 目录）
-            result_cloud_url = cloud_storage.upload_bytes_to_supabase(
-                result_bytes, 
-                export_name, 
-                folder="option_1/result"
-            )
+                full_content = part1_text + "\n\n" + "\n".join(part2_lines)
+                st.markdown("###  生成的描述文本预览：")
+                st.text_area("生成文本内容（已自动首行缩进）", full_content, height=250)
+                
+                export_name = file_to_process.name.rsplit(".", 1)[0] + "_描述.txt"
+                result_bytes = full_content.encode("utf-8")
+                
+                # 自动保存结果文件（存入 option_1/result 目录）
+                result_cloud_url = cloud_storage.upload_bytes_to_supabase(
+                    result_bytes, 
+                    export_name, 
+                    folder="option_1/result"
+                )
 
-            st.success("🎉 分析完成！结果已自动保存至云端。")
-            st.markdown(f"📥 **[点击直接下载分析结果 TXT 文件]({result_cloud_url})**")
+                st.success("🎉 分析完成！结果已自动保存至云端。")
+                st.markdown(f"📥 **[点击直接下载分析结果 TXT 文件]({result_cloud_url})**")
             except Exception as e:
-              st.error(f"处理文件时出错，请检查 Excel 列名！具体错误信息: {e}")
+                st.error(f"处理文件时出错，请检查 Excel 列名！具体错误信息: {e}")
     # 🌟 2. 底部增加折叠框：专门用来查看和下载以前生成过的 TXT 分析结果历史
     result_cloud_files = cloud_storage.list_supabase_files(folder="option_1/result")
     if result_cloud_files:
