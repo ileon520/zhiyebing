@@ -39,14 +39,29 @@ def upload_bytes_to_supabase(
       import re
       import random
       from datetime import datetime
-
-      # 🌟 放弃不稳定的拼音库，直接用纯数字时间戳+随机数安全命名，防止任何乱码和覆盖！
-      # 但是请姐姐放心，这个乱码只是存在云端的“真实名字”，在网页展示给你的依然是你原本的中文名！
-      name_part, ext_part = os.path.splitext(file_name)
-      time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-      rand_str = str(random.randint(1000, 9999))
       
-      safe_file_name = f"doc_{time_str}_{rand_str}{ext_part}"
+      # 🌟 满足姐姐的要求：提取出原始文件名
+      name_part, ext_part = os.path.splitext(file_name)
+      
+      # 引入我们已经安装好的拼音库
+      try:
+          import pypinyin
+          # 1. 将中文文件名转换成拼音（去掉音调，连在一起）
+          pinyin_list = pypinyin.lazy_pinyin(name_part)
+          pinyin_name = "".join(pinyin_list)
+          # 2. 剔除拼音里的特殊符号（如括号、空格等），只保留字母和数字，防止云端报错
+          pinyin_name = re.sub(r'[^a-zA-Z0-9]', '', pinyin_name)
+          if not pinyin_name:  # 如果名字被掏空了，兜底用 doc
+              pinyin_name = "doc"
+      except ImportError:
+          # 如果换了没装拼音库的电脑，自动兜底，不会报错崩溃
+          pinyin_name = "doc"
+      
+      # 3. 加上时间戳防止同名文件覆盖
+      time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+      
+      # 最终云端存储的名字：拼音_时间.xlsx
+      safe_file_name = f"{pinyin_name}_{time_str}{ext_part}"
       full_path = f"{folder}/{safe_file_name}"
 
       client.storage.from_(bucket_name).upload(
