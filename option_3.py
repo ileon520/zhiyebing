@@ -49,7 +49,58 @@ def render_page(smart_read_uploaded_file, get_pinyin_sort_key, API_CONFIGS, chec
             opt3_model = st.selectbox("🧠 选择具体模型：", API_CONFIGS[opt3_provider]["models"], index=0, key="opt3_model")
 
     st.subheader("📂 第二步：上传表格并生成")
-    uploaded_file = st.file_uploader("点击或拖入上传 Excel 文件", type=["xlsx", "xls"], key="opt3_upload")
+    # 🌟 1. 顶部提供选择方式：本地上传 OR 选择云端已存原始表格
+    source_type = st.radio("请选择文件来源：", ["📁 上传本地 Excel 文件", "☁️ 选择云端历史原始表格"], horizontal=True)
+
+    uploaded_file = None
+
+    if source_type == "📁 上传本地 Excel 文件":
+        local_file = st.file_uploader("点击或拖入上传 Excel 文件", type=["xlsx", "xls"], key="opt3_local")
+        if local_file is not None:
+            uploaded_file = local_file
+            # 🌟 给网页装上“记忆”，防止只要一点击按钮就疯狂重复上传！
+            if "last_uploaded_file_3" not in st.session_state or st.session_state.last_uploaded_file_3 != local_file.name:
+                cloud_storage.upload_bytes_to_supabase(local_file.getvalue(), local_file.name, folder="option_3/raw")
+                st.session_state.last_uploaded_file_3 = local_file.name
+    else:
+        # 🌟 读取云端原始表格目录 option_3/raw
+        raw_cloud_files = cloud_storage.list_supabase_files(folder="option_3/raw")
+        if raw_cloud_files:
+            options_map = {f["display_name"]: f for f in raw_cloud_files}
+            chosen_display = st.selectbox("请选择要重新分析的云端原始表格：", list(options_map.keys()))
+            selected_file_info = options_map[chosen_display]
+
+            st.markdown(f"📥 **[下载选中的云端原始文件]({selected_file_info['download_url']})**")
+            
+            # 批量管理/删除历史原始表格
+            with st.expander("🗑️ 批量管理/删除历史原始表格", expanded=False):
+                def toggle_all_raw_3():
+                    for f in raw_cloud_files:
+                        st.session_state[f"del_chk_raw3_{f['path']}"] = st.session_state.sel_all_raw_3
+
+                st.checkbox("✅ 全选所有原始表格", key="sel_all_raw_3", on_change=toggle_all_raw_3)
+                del_raw_list = []
+                for f_info in raw_cloud_files:
+                    c1, c2 = st.columns([1, 9])
+                    with c1:
+                        if st.checkbox("勾选", key=f"del_chk_raw3_{f_info['path']}", label_visibility="collapsed"):
+                            del_raw_list.append(f_info["path"])
+                    with c2:
+                        st.write(f_info['display_name'])
+                if del_raw_list:
+                    if st.button(f"🚨 确认永久删除选中的 {len(del_raw_list)} 个表格", key="btn_del_raw_3"):
+                        for p in del_raw_list:
+                            cloud_storage.delete_supabase_file(p)
+                        st.success("批量删除成功！")
+                        st.rerun()
+
+            # 从云端下载字节流供 Python 读取分析
+            file_bytes = cloud_storage.download_bytes_from_supabase(selected_file_info["path"])
+            if file_bytes:
+                uploaded_file = io.BytesIO(file_bytes)
+                uploaded_file.name = selected_file_info["file_name"]
+        else:
+            st.info("☁️ 云端暂无备份的原始表格，请先从本地上传~")
 
     if uploaded_file is not None:
         # 🌟 新增：增加两种模式的按钮（并排放置）
@@ -263,6 +314,13 @@ def render_page(smart_read_uploaded_file, get_pinyin_sort_key, API_CONFIGS, chec
             st.session_state.opt3_full_buffer = full_buffer.getvalue()
             st.session_state.opt3_output_sheets = full_sheets
             st.session_state.opt3_t2_done = True
+            # 🌟 自动保存生成的全套 Excel 结果文件到云端 option_3/result 目录
+            export_name = uploaded_file.name.rsplit(".", 1)[0] + "_报告书全集.xlsx"
+            cloud_storage.upload_bytes_to_supabase(
+                full_buffer.getvalue(),
+                file_name=export_name,
+                folder="option_3/result"
+            )
             st.rerun()
 
         # AI 完成后的全套下载按钮
@@ -279,6 +337,35 @@ def render_page(smart_read_uploaded_file, get_pinyin_sort_key, API_CONFIGS, chec
                 if st.session_state.opt3_output_sheets and '表格2_阳性结果及建议' in st.session_state.opt3_output_sheets:
                     st.dataframe(st.session_state.opt3_output_sheets['表格2_阳性结果及建议'], use_container_width=True)
 
+    # 🌟 2. 底部增加折叠框：专门用来查看/下载/批量删除以前自动保存过的云端 Excel 结果
+    result_cloud_files = cloud_storage.list_supabase_files(folder="option_3/result")
+    if result_cloud_files:
+        with st.expander("📜 批量查看/下载/删除云端历史 Excel 成果", expanded=False):
+            def toggle_all_res_3():
+                for f in result_cloud_files:
+                    st.session_state[f"chk_res3_{f['path']}"] = st.session_state.sel_all_res_3
+                    
+            st.checkbox("✅ 全选所有结果文件", key="sel_all_res_3", on_change=toggle_all_res_3)
+            del_res_list = []
+            
+            for res_file in result_cloud_files:
+                col_chk, col_name, col_btn = st.columns([1, 6, 2])
+                with col_chk:
+                    if st.checkbox("勾选", key=f"chk_res3_{res_file['path']}", label_visibility="collapsed"):
+                        del_res_list.append(res_file["path"])
+                with col_name:
+                    st.write(f"📄 {res_file['display_name']}")
+                with col_btn:
+                    st.markdown(f"📥 **[点击下载]({res_file['download_url']})**")
+            
+            if del_res_list:
+                if st.button(f"🗑️ 永久删除选中的 {len(del_res_list)} 个结果文件", key="btn_del_res_3"):
+                    for p in del_res_list:
+                        cloud_storage.delete_supabase_file(p)
+                    st.success("批量删除成功！")
+                    st.rerun()
+    
+    
     # ==========================
     # 💡 底部固定展示的示例区
     # ==========================
