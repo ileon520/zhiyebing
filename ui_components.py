@@ -1,13 +1,9 @@
 ﻿import streamlit as st
 
-def render_sidebar_and_navigation(app_options):
-    """
-    负责渲染侧边栏的配色设置、搜索栏、标签筛选、导航菜单，
-    并返回当前选中的页面名称。
-    """
+def render_theme():
+    """渲染侧边栏配色设置与多巴胺主题 CSS"""
     st.sidebar.title("⚙️ 设置与导航")
 
-    # 1. 配色方案设置
     with st.sidebar.expander(" 界面配色设置", expanded=False):
         theme_choice = st.selectbox(
             "选择预设多巴胺配色：",
@@ -37,11 +33,13 @@ def render_sidebar_and_navigation(app_options):
     """
     st.markdown(custom_css, unsafe_allow_html=True)
 
-    # 2. 搜索与标签筛选库
+def render_navigation(app_options):
+    """渲染侧边栏搜索框、标签筛选库及菜单导航，返回用户选中的功能名称"""
     st.sidebar.divider()
     st.sidebar.subheader("🔎 功能筛选库")
     search_keyword = st.sidebar.text_input("🔍 搜索选项名称...")
 
+    # 提取所有不重复的标签
     all_tags = sorted(list(set(tag for opt in app_options for tag in opt["tags"])))
     selected_tags = st.sidebar.multiselect("🏷️ 按业务标签筛选：", all_tags)
 
@@ -57,7 +55,5 @@ def render_sidebar_and_navigation(app_options):
         filtered_options = [app_options[0]["name"]]
 
     st.sidebar.divider()
-    
-    # 3. 侧边栏菜单绑定
     menu_choice = st.sidebar.radio("📌 请选择功能：", filtered_options, key="current_page")
     return menu_choice

@@ -10,6 +10,7 @@ import option_1
 import option_2
 import option_3
 import ai_assistant
+import ui_components
 
 
 def smart_read_uploaded_file(uploaded_file):
@@ -201,65 +202,11 @@ def go_to_page(page_name):
 # -----------------------------------------------------------------------------
 # 2. 侧边栏设置：配色方案（暗色文字 + 浅色多巴胺背景）
 # -----------------------------------------------------------------------------
-st.sidebar.title("⚙️ 设置与导航")
+# 2. 渲染配色主题与自定义 CSS
+ui_components.render_theme()
 
-with st.sidebar.expander(" 界面配色设置", expanded=False):
-    theme_choice = st.selectbox(
-        "选择预设多巴胺配色：",
-        [" 柔粉奶油 (默认多巴胺)", " 清新薄荷", " 薰衣草紫", " 自定义配色"]
-    )
-    # 配色代码复用[cite: 1]
-    if theme_choice == " 柔粉奶油 (默认多巴胺)":
-        bg_color, card_color, text_color, btn_bg, btn_text = "#FFFDF6", "#FFE5EC", "#2A085C", "#FFC2D1", "#4A0E17"
-    elif theme_choice == " 清新薄荷":
-        bg_color, card_color, text_color, btn_bg, btn_text = "#F4FBF7", "#E8F5E9", "#004D40", "#A5D6A7", "#1B5E20"
-    elif theme_choice == " 薰衣草紫":
-        bg_color, card_color, text_color, btn_bg, btn_text = "#FAF5FF", "#F3E5F5", "#3B0764", "#E1BEE7", "#4A148C"
-    else:
-        bg_color = st.color_picker("背景颜色 (浅色)", "#FFFDF6")
-        card_color = st.color_picker("卡片背景 (浅色)", "#FFE5EC")
-        text_color = st.color_picker("全局文字 (暗色)", "#2A085C")
-        btn_bg = st.color_picker("按钮背景色", "#FFC2D1")
-        btn_text = st.color_picker("按钮文字颜色", "#4A0E17")
-
-custom_css = f"""
-<style>
-    .stApp {{ background-color: {bg_color}; color: {text_color}; }}
-    h1, h2, h3, p, label, .stMarkdown, .stSelectbox {{ color: {text_color} !important; font-family: 'Microsoft YaHei', sans-serif; }}
-    /* 使用 Streamlit 原生容器替代纯 HTML div 以解决分离问题 */
-    [data-testid="stVerticalBlockBorderWrapper"] {{ background-color: {card_color}; border-radius: 18px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }}
-    div.stButton > button {{ background-color: {btn_bg} !important; color: {btn_text} !important; font-weight: bold !important; border-radius: 12px !important; border: none !important; padding: 10px 24px !important; transition: all 0.3s ease; }}
-    div.stButton > button:hover {{ transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.12); }}
-</style>
-"""
-st.markdown(custom_css, unsafe_allow_html=True)
-
-# -----------------------------------------------------------------------------
-# 3. 导航控制：带搜索和标签筛选的侧边栏
-# -----------------------------------------------------------------------------
-st.sidebar.divider()
-st.sidebar.subheader("🔎 功能筛选库")
-search_keyword = st.sidebar.text_input("🔍 搜索选项名称...")
-
-# 提取所有不重复的标签，并提供多选框
-all_tags = sorted(list(set(tag for opt in APP_OPTIONS for tag in opt["tags"])))
-selected_tags = st.sidebar.multiselect("🏷️ 按业务标签筛选：", all_tags)
-
-# 根据搜索词和标签过滤选项
-filtered_options = []
-for opt in APP_OPTIONS:
-    match_kw = search_keyword.lower() in opt["name"].lower() if search_keyword else True
-    match_tag = any(tag in selected_tags for tag in opt["tags"]) if selected_tags else True
-    if match_kw and match_tag:
-        filtered_options.append(opt["name"])
-
-if not filtered_options:
-    st.sidebar.warning("没有找到匹配的选项，请清空搜索或标签~")
-    filtered_options = [APP_OPTIONS[0]["name"]]
-
-st.sidebar.divider()
-# 侧边栏菜单（绑定 session_state 的 current_page）
-menu_choice = st.sidebar.radio("📌 请选择功能：", filtered_options, key="current_page")
+# 3. 渲染侧边栏导航、搜索框与标签筛选
+menu_choice = ui_components.render_navigation(APP_OPTIONS)
 
 # -----------------------------------------------------------------------------
 # 4. 页面内容及各选项具体逻辑
@@ -290,106 +237,9 @@ if menu_choice == " 首页控制台":
 
 # --- 🤖 AI 智能测试助手 界面 ---
 elif menu_choice == " 🤖 AI 智能测试助手":
-    # 顶部标题与“新开聊天”按钮（并排放置）
-    col_title, col_reset = st.columns([3, 1])
-    with col_title:
-        st.title("🤖 AI 智能测试助手")
-    with col_reset:
-        # 点击清空聊天历史，开启新对话
-        if st.button("🧹 新开聊天", use_container_width=True):
-            st.session_state.chat_messages = [
-                {"role": "assistant", "content": "你好！我是 AI 测试助手，当前接口正常运行，你想测试什么？"}
-            ]
-            st.rerun()
+    ai_assistant.render_page(API_CONFIGS, check_network_environment, call_ai_api)
 
-    st.write("姐姐可以在这里随意测试各个 API 接口与模型的可用性：")
 
-    # 1. 下拉菜单选择 API 厂商与模型
-    provider_list = list(API_CONFIGS.keys())
-
-    # 🌟 智能判断默认选中项：能连外网默认选择【智谱 AI】，纯内网自动切换为【本地小模型】
-    if check_network_environment():
-      # 外网：自动匹配名称中包含“智谱”的选项索引，若未找到则默认第一个
-      default_provider_idx = next(
-          (i for i, name in enumerate(provider_list) if "智谱" in name), 0
-      )
-    else:
-      # 内网：自动匹配名称中包含“本地”或“Ollama”的选项索引
-      default_provider_idx = next(
-          (
-              i
-              for i, name in enumerate(provider_list)
-              if "本地" in name or "Ollama" in name
-          ),
-          0,
-      )
-
-    col1, col2 = st.columns(2)
-    with col1:
-      selected_provider = st.selectbox(
-          "📌 选择 API 厂商：",
-          provider_list,
-          index=default_provider_idx,  # 👈 替换为智能判断出的默认索引！
-      )
-    with col2:
-        available_models = API_CONFIGS[selected_provider]["models"]
-        selected_model = st.selectbox(
-            "🧠 选择具体模型：",
-            available_models,
-            index=0
-        )
-
-    st.caption(
-        f"当前使用的接口：`{selected_provider}` | 模型名：`{selected_model}`"
-    )
-
-    # 🌟 1. 动态勾选框：控制是否附带 GBZ 188 资料
-    is_silicon = "硅基" in selected_provider
-    if is_silicon:
-      st.info("💡 硅基流动模式：为节省代金券/流量，已自动关闭外部资料携带。")
-      attach_gbz = False
-    else:
-      attach_gbz = st.checkbox(
-          "📚 勾选此项：向 AI 附加《GBZ 188-2025》参考资料（适合向智谱/本地小模型提问时开启）",
-          value=False,  # 默认不勾选，不浪费任何无谓的 tokens！
-      )
-
-    st.divider()
-
-    # 2. 初始化对话历史
-    if "chat_messages" not in st.session_state:
-        st.session_state.chat_messages = [
-            {"role": "assistant", "content": "姐姐好！我是 AI 测试助手，当前接口正常运行，你想测试什么？"}
-        ]
-
-    # 显示过往聊天记录
-    for msg in st.session_state.chat_messages:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
-
-    # 3. 聊天输入框与 API 发送
-    user_input = st.chat_input("请输入你想对 AI 说的测试内容...")
-    if user_input:
-        # 显示用户发送的信息
-        st.session_state.chat_messages.append({"role": "user", "content": user_input})
-        with st.chat_message("user"):
-            st.write(user_input)
-
-        # 调用后台 API 接口获取回答
-        with st.chat_message("assistant"):
-            with st.spinner("AI 思考中，请稍候..."):
-                try:
-                    # 格式化历史消息发给 API
-                    api_msgs = [{"role": m["role"], "content": m["content"]} for m in st.session_state.chat_messages]
-                    # 传入 attach_gbz 参数：只有勾选了才会带上 txt 内容
-                    reply = call_ai_api(
-                        selected_provider, selected_model, api_msgs, use_gbz=attach_gbz
-                    )
-                    
-                    st.write(reply)
-                    st.session_state.chat_messages.append({"role": "assistant", "content": reply})
-                except Exception as e:
-                    st.error(f"❌ 调用失败，请检查网络或 API 额度！具体错误：{e}")
 elif menu_choice == " 选项 1：报告书百分比转文字":
     option_1.render_page(smart_read_uploaded_file)
 
