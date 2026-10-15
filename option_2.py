@@ -152,8 +152,8 @@ def render_page(smart_read_uploaded_file):
                 use_container_width=True
             )
             
-        except Exception as e:
-            st.error(f"处理文件时出错，请检查是否包含所需列！错误信息: {e}")
+            except Exception as e:
+                st.error(f"处理文件时出错，请检查是否包含所需列！错误信息: {e}")
     # 👇 新增：底部增加折叠框，用来查看和下载以前生成过的 Excel 分析结果历史
     result_cloud_files = cloud_storage.list_supabase_files(folder="option_2/result")
     if result_cloud_files:

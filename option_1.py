@@ -99,8 +99,8 @@ def render_page(smart_read_uploaded_file):
 
             st.success("🎉 分析完成！结果已自动保存至云端。")
             st.markdown(f"📥 **[点击直接下载分析结果 TXT 文件]({result_cloud_url})**")
-        except Exception as e:
-          st.error(f"处理文件时出错，请检查 Excel 列名！具体错误信息: {e}")
+            except Exception as e:
+              st.error(f"处理文件时出错，请检查 Excel 列名！具体错误信息: {e}")
     # 🌟 2. 底部增加折叠框：专门用来查看和下载以前生成过的 TXT 分析结果历史
     result_cloud_files = cloud_storage.list_supabase_files(folder="option_1/result")
     if result_cloud_files:
