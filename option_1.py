@@ -37,15 +37,27 @@ def render_page(smart_read_uploaded_file):
             chosen_display = st.selectbox("请选择要重新分析的云端原始表格：", list(options_map.keys()))
             selected_file_info = options_map[chosen_display]
 
-            # 补上下载按钮与删除按钮
-            col_dl, col_del = st.columns([3, 2])
-            with col_dl:
-                st.markdown(f"📥 **[下载选中的云端原始文件]({selected_file_info['download_url']})**")
-            with col_del:
-                if st.checkbox("⚠️ 确认删除此表格？", key="chk_raw"):
-                    if st.button("🗑️ 立即删除", key="del_raw"):
-                        cloud_storage.delete_supabase_file(selected_file_info["path"])
-                        st.rerun() # 删除后立刻刷新页面
+            st.markdown(f"📥 **[下载选中的云端原始文件]({selected_file_info['download_url']})**")
+            
+            # 👇 新增：批量删除云端原始表格
+            with st.expander("🗑️ 批量管理/删除历史原始表格", expanded=False):
+                select_all_raw = st.checkbox("✅ 全选所有原始表格", key="sel_all_raw_1")
+                del_raw_list = []
+                for f_info in raw_cloud_files:
+                    c1, c2 = st.columns([1, 9])
+                    with c1:
+                        # 只要点了全选，这里的 value 就会变成 True 自动打钩
+                        if st.checkbox("勾选", value=select_all_raw, key=f"del_chk_{f_info['path']}", label_visibility="collapsed"):
+                            del_raw_list.append(f_info["path"])
+                    with c2:
+                        st.write(f_info['display_name'])
+                
+                if del_raw_list:
+                    if st.button(f"🚨 确认永久删除选中的 {len(del_raw_list)} 个表格", key="btn_del_raw_1"):
+                        for p in del_raw_list:
+                            cloud_storage.delete_supabase_file(p)
+                        st.success("批量删除成功！")
+                        st.rerun()
 
             # 从云端下载字节流供 Python 读取分析
             file_bytes = cloud_storage.download_bytes_from_supabase(selected_file_info["path"])
@@ -109,19 +121,26 @@ def render_page(smart_read_uploaded_file):
     # 🌟 2. 底部增加折叠框：专门用来查看和下载以前生成过的 TXT 分析结果历史
     result_cloud_files = cloud_storage.list_supabase_files(folder="option_1/result")
     if result_cloud_files:
-        with st.expander("📜 查看/下载以前自动保存过的云端 TXT 描述结果", expanded=False):
+        with st.expander("📜 批量查看/下载/删除云端 TXT 描述结果", expanded=False):
+            select_all_res = st.checkbox("✅ 全选所有结果文件", key="sel_all_res_1")
+            del_res_list = []
+            
             for res_file in result_cloud_files:
-                col_name, col_btn, col_del = st.columns([5, 2, 3])
+                col_chk, col_name, col_btn = st.columns([1, 6, 2])
+                with col_chk:
+                    if st.checkbox("勾选", value=select_all_res, key=f"chk_res_{res_file['path']}", label_visibility="collapsed"):
+                        del_res_list.append(res_file["path"])
                 with col_name:
                     st.write(f"📄 {res_file['display_name']}")
                 with col_btn:
                     st.markdown(f"📥 **[点击下载]({res_file['download_url']})**")
-                with col_del:
-                    # 两步防误触安全删除
-                    if st.checkbox("确认删除?", key=f"chk_{res_file['path']}"):
-                        if st.button("🗑️ 永久删除", key=f"del_{res_file['path']}"):
-                            cloud_storage.delete_supabase_file(res_file["path"])
-                            st.rerun()
+            
+            if del_res_list:
+                if st.button(f"🗑️ 永久删除选中的 {len(del_res_list)} 个结果文件", key="btn_del_res_1"):
+                    for p in del_res_list:
+                        cloud_storage.delete_supabase_file(p)
+                    st.success("批量删除成功！")
+                    st.rerun()
     
     # 增加的示例展示区
     st.divider()
