@@ -22,8 +22,13 @@ def render_page(smart_read_uploaded_file):
         uploaded_file = st.file_uploader("点击或拖入上传 Excel 文件", type=["xlsx", "xls"], key="opt1_local")
         if uploaded_file is not None:
             file_to_process = uploaded_file
-            # 自动备份原始文件到云端 option_1/raw
-            cloud_storage.upload_bytes_to_supabase(uploaded_file.getvalue(), uploaded_file.name, folder="option_1/raw")
+
+            # 🌟 新增：给网页装上“记忆”，防止只要一点击按钮就疯狂重复上传！
+            if "last_uploaded_file_1" not in st.session_state or st.session_state.last_uploaded_file_1 != uploaded_file.name:
+                # 自动备份原始文件到云端 option_1/raw
+                cloud_storage.upload_bytes_to_supabase(uploaded_file.getvalue(), uploaded_file.name, folder="option_1/raw")
+                # 记下这个文件名，下次刷新就不会再瞎传了
+                st.session_state.last_uploaded_file_1 = uploaded_file.name
     else:
         # 🌟 只读取原始表格目录 option_1/raw，避免读取到 txt 结果文件导致预览错乱
         raw_cloud_files = cloud_storage.list_supabase_files(folder="option_1/raw")
