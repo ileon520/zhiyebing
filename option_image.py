@@ -52,6 +52,17 @@ def get_dark_color(hex_color, factor=0.35):
     except Exception:
         return "#222222"
 
+def get_thumbnail_bytes(img_path, max_width=400):
+    """🌟 新增：生成背景图的极速轻量缩略图，避免加载原图变卡"""
+    try:
+        with Image.open(img_path) as img:
+            img.thumbnail((max_width, max_width))
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=70)
+            return buf.getvalue()
+    except Exception:
+        return None
+
 def add_multi_text_to_image(img, text_items, global_line_gap=20):
     """在图片上绘制多组独立风格的文字，并统一绝对均匀的行间距与垂直居中"""
     img = img.convert("RGB")
@@ -180,10 +191,12 @@ def render_page():
                 actual_img_path = p
                 break
 
-        # 🌟 新增：独立展示选中的背景素材原图（不带字）
+        # 🌟 修改：展示极速缩略图（不加载几兆的高清原图，切换图片秒开）
         if actual_img_path:
-            with st.expander("📷 查看选中的背景素材原图（纯背景）", expanded=True):
-                st.image(actual_img_path, caption="当前选择的背景原图", use_container_width=True)
+            thumb_data = get_thumbnail_bytes(actual_img_path, max_width=350)
+            if thumb_data:
+                with st.expander("📷 查看选中的背景素材（轻量缩略图）", expanded=True):
+                    st.image(thumb_data, caption="当前选择的背景素材预览", width=220)
 
         # 🌟 整体行间距控制滑块
         global_line_gap = st.slider(
@@ -279,18 +292,34 @@ def render_page():
         st.subheader("👀 效果预览与生成区")
         
         if actual_img_path:
-            # 🌟 1. 独立框：文字排版、大小与配色实时预览框（使用深灰底板，方便清晰看字号和描边）
+            # 🌟 1. 独立框：低分辨率极速文字排版框（实时响应改字、调号与变色）
             st.markdown("#### ✍️ 1. 文字字号与配色实时排版框")
             try:
                 base_img = Image.open(actual_img_path)
-                # 创建与背景图同等尺寸的纯色底板，专门用来实时展示文字的大小和样式
-                preview_canvas = Image.new("RGB", base_img.size, "#222222")
+                # 🌟 计算轻量化底板尺寸（缩放至 35% 像素），大大减轻计算量
+                fast_w = max(300, int(base_img.width * 0.35))
+                fast_h = max(300, int(base_img.height * 0.35))
+                scale_ratio = 0.35
+
+                # 同步按比例缩放字号、描边与行间距进行极速绘制
+                fast_items = []
+                for item in st.session_state.text_items:
+                    fast_items.append({
+                        "text": item["text"],
+                        "font_size": max(15, int(item["font_size"] * scale_ratio)),
+                        "text_color": item["text_color"],
+                        "stroke_color": item["stroke_color"],
+                        "stroke_width": max(1, int(item["stroke_width"] * scale_ratio))
+                    })
+                fast_gap = int(global_line_gap * scale_ratio)
+
+                preview_canvas = Image.new("RGB", (fast_w, fast_h), "#222222")
                 text_preview_img = add_multi_text_to_image(
                     preview_canvas, 
-                    st.session_state.text_items, 
-                    global_line_gap=global_line_gap
+                    fast_items, 
+                    global_line_gap=fast_gap
                 )
-                st.image(text_preview_img, caption="实时文字排版、大小与配色展示（不含背景花纹）", use_container_width=True)
+                st.image(text_preview_img, caption="⚡ 极速排版预览（修改文字、颜色或字号秒级更新）", use_container_width=True)
             except Exception as e:
                 st.error(f"文字预览渲染失败：{e}")
 
