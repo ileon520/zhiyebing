@@ -131,10 +131,13 @@ def render_page(smart_read_uploaded_file):
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                 # header=False 防止输出 DataFrame 原本的英文列名
                 result_df.to_excel(writer, index=False, header=False)
-            # 👇 新增：自动保存结果文件（存入 option_2/result 目录）
+            # 🌟 新增：动态生成导出文件名（原文件名 + _月报表统计.xlsx）
+            export_name = file_to_process.name.rsplit(".", 1)[0] + "_月报表统计.xlsx"
+
+            # 自动保存结果文件（存入 option_2/result 目录）
             cloud_storage.upload_bytes_to_supabase(
                 excel_buffer.getvalue(), 
-                file_name="月报表统计结果.xlsx", 
+                file_name=export_name, 
                 folder="option_2/result"
             )
             
@@ -142,7 +145,7 @@ def render_page(smart_read_uploaded_file):
             st.download_button(
                 label="📥 点击下载统计结果 Excel",
                 data=excel_buffer.getvalue(),
-                file_name="月报表统计结果.xlsx",
+                file_name=export_name,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )

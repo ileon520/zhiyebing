@@ -37,12 +37,22 @@ def upload_bytes_to_supabase(
   if client is not None:
     try:
       import re
+      from datetime import datetime
 
-      # 安全清理文件名：只保留字母、数字、下划线、横杠和点，避免出现 % 导致 Supabase 报 InvalidKey
+      # 🌟 1. 尝试将中文文件名转为拼音
       name_part, ext_part = os.path.splitext(file_name)
+      try:
+          import pypinyin
+          name_part = ''.join(pypinyin.lazy_pinyin(name_part))
+      except Exception:
+          pass
+
+      # 🌟 2. 清理特殊字符，并加上“时分秒”时间戳，彻底防止云端同名覆盖！
       safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', name_part)
+      time_str = datetime.now().strftime("%H%M%S") # 获取当前时分秒
+      
       safe_file_name = (
-          f"{safe_name}{ext_part}" if safe_name else f"file{ext_part}"
+          f"{safe_name}_{time_str}{ext_part}" if safe_name else f"file_{time_str}{ext_part}"
       )
       full_path = f"{folder}/{safe_file_name}"
 
