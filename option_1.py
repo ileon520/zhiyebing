@@ -41,13 +41,17 @@ def render_page(smart_read_uploaded_file):
             
             # 👇 新增：批量删除云端原始表格
             with st.expander("🗑️ 批量管理/删除历史原始表格", expanded=False):
-                select_all_raw = st.checkbox("✅ 全选所有原始表格", key="sel_all_raw_1")
+                # 🌟 增加强制修改所有复选框记忆的联动指令
+                def toggle_all_raw_1():
+                    for f in raw_cloud_files:
+                        st.session_state[f"del_chk_{f['path']}"] = st.session_state.sel_all_raw_1
+
+                st.checkbox("✅ 全选所有原始表格", key="sel_all_raw_1", on_change=toggle_all_raw_1)
                 del_raw_list = []
                 for f_info in raw_cloud_files:
                     c1, c2 = st.columns([1, 9])
                     with c1:
-                        # 只要点了全选，这里的 value 就会变成 True 自动打钩
-                        if st.checkbox("勾选", value=select_all_raw, key=f"del_chk_{f_info['path']}", label_visibility="collapsed"):
+                        if st.checkbox("勾选", key=f"del_chk_{f_info['path']}", label_visibility="collapsed"):
                             del_raw_list.append(f_info["path"])
                     with c2:
                         st.write(f_info['display_name'])
@@ -122,13 +126,18 @@ def render_page(smart_read_uploaded_file):
     result_cloud_files = cloud_storage.list_supabase_files(folder="option_1/result")
     if result_cloud_files:
         with st.expander("📜 批量查看/下载/删除云端 TXT 描述结果", expanded=False):
-            select_all_res = st.checkbox("✅ 全选所有结果文件", key="sel_all_res_1")
+            # 🌟 增加联动指令
+            def toggle_all_res_1():
+                for f in result_cloud_files:
+                    st.session_state[f"chk_res_{f['path']}"] = st.session_state.sel_all_res_1
+                    
+            st.checkbox("✅ 全选所有结果文件", key="sel_all_res_1", on_change=toggle_all_res_1)
             del_res_list = []
             
             for res_file in result_cloud_files:
                 col_chk, col_name, col_btn = st.columns([1, 6, 2])
                 with col_chk:
-                    if st.checkbox("勾选", value=select_all_res, key=f"chk_res_{res_file['path']}", label_visibility="collapsed"):
+                    if st.checkbox("勾选", key=f"chk_res_{res_file['path']}", label_visibility="collapsed"):
                         del_res_list.append(res_file["path"])
                 with col_name:
                     st.write(f"📄 {res_file['display_name']}")
