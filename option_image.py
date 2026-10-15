@@ -162,6 +162,9 @@ def render_page():
                 "stroke_width": 16
             }
         ]
+    # 🌟 新增：初始化预览图缓存，避免改字时频繁重新渲染
+    if "opt4_preview_bytes" not in st.session_state:
+        st.session_state.opt4_preview_bytes = None
 
     col_control, col_preview = st.columns([1, 1])
 
@@ -268,31 +271,40 @@ def render_page():
                 st.rerun()
 
     with col_preview:
-        st.subheader("🖼️ 表情包效果实时预览")
+        st.subheader("🖼️ 表情包效果预览")
+        
+        # 🌟 1. 增加点击生成按钮
+        btn_generate = st.button("🚀 点击生成/更新预览图", type="primary", use_container_width=True)
         
         if actual_img_path:
-            try:
-                base_img = Image.open(actual_img_path)
-                res_img = add_multi_text_to_image(
-                    base_img, 
-                    st.session_state.text_items, 
-                    global_line_gap=global_line_gap
-                )
-                
-                st.image(res_img, caption="生成的表情包样式", use_container_width=True)
-                
-                buf = io.BytesIO()
-                res_img.save(buf, format="JPEG", quality=95)
-                byte_im = buf.getvalue()
+            # 当点击生成按钮时，才真正触发图片合成
+            if btn_generate:
+                try:
+                    with st.spinner("正在合成高清大字表情包..."):
+                        base_img = Image.open(actual_img_path)
+                        res_img = add_multi_text_to_image(
+                            base_img, 
+                            st.session_state.text_items, 
+                            global_line_gap=global_line_gap
+                        )
+                        
+                        buf = io.BytesIO()
+                        res_img.save(buf, format="JPEG", quality=95)
+                        st.session_state.opt4_preview_bytes = buf.getvalue()
+                except Exception as e:
+                    st.error(f"处理图片时出错：{e}")
 
+            # 🌟 2. 如果已经生成了图片，就展示效果与下载按钮；未生成则给出提示
+            if st.session_state.opt4_preview_bytes is not None:
+                st.image(st.session_state.opt4_preview_bytes, caption="当前生成的表情包样式", use_container_width=True)
                 st.download_button(
                     label="📥 点击一键保存/下载高清表情包",
-                    data=byte_im,
+                    data=st.session_state.opt4_preview_bytes,
                     file_name="喜庆大字表情包.jpg",
                     mime="image/jpeg",
                     use_container_width=True
                 )
-            except Exception as e:
-                st.error(f"处理图片时出错：{e}")
+            else:
+                st.info("👈 请在左侧调整好文字与参数后，点击上方【🚀 点击生成/更新预览图】按钮查看效果。")
         else:
             st.warning("⚠️ 未找到对应的图片文件！请确保已经把 `flower01.jpg` ~ `flower04.jpg` 上传到了 GitHub 的 `images/` 文件夹中。")
