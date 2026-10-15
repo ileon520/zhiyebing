@@ -4,6 +4,7 @@ import io
 import cloud_storage
 
 def render_page(smart_read_uploaded_file):
+# --- 选项 2 ：疾控月报表 界面 ---
     st.title("📊 选项 2：疾控月报表自动统计")
     st.write("可以直接把省平台下载的Excel表格上传，也可以只保留【用工单位名称】和【体检危害因素名称】这2列再上传：")
     
@@ -14,9 +15,11 @@ def render_page(smart_read_uploaded_file):
             df = smart_read_uploaded_file(uploaded_file)
             df = df.dropna(subset=['用工单位名称', '体检危害因素名称'])
             
+            # 显示读取成功提示
             unit_count = len(df['用工单位名称'].unique())
             st.success(f"✅ 文件读取成功！共检测到 {unit_count} 个单位，点击下方按钮下载统计报表。")
             
+            # 核心函数：分析单人危害因素
             def analyze_person_hazards(hazard_str):
                 if pd.isna(hazard_str) or not str(hazard_str).strip():
                     return {}
@@ -52,8 +55,12 @@ def render_page(smart_read_uploaded_file):
                     categories["其他化学因素"] = 1
                 return categories
 
+            # 用于存储所有行数据的列表
             output_data = []
+            
+            # 核心函数：向表格数据中追加单个单位的统计块
             def add_table_to_data(temp_df, title):
+                # 写入单位名称（不再使用 ===）
                 output_data.append({"危害因素": title, "接触职业病危害因素人数": ""})
                 output_data.append({"危害因素": "危害因素", "接触职业病危害因素人数": "接触职业病危害因素人数"})
                 
@@ -71,40 +78,76 @@ def render_page(smart_read_uploaded_file):
                 for key, count in totals.items():
                     output_data.append({"危害因素": key, "接触职业病危害因素人数": count})
                 
+                # 追加一个空行隔开不同单位
                 output_data.append({"危害因素": "", "接触职业病危害因素人数": ""})
             
+            # 1. 统计总表
             add_table_to_data(df, "1-3 表格：全因素汇总表")
-            for unit in df['用工单位名称'].unique():
-                add_table_to_data(df[df['用工单位名称'] == unit], f"1-2 表格：{unit}")
             
+            # 2. 分别统计各单位
+            units = df['用工单位名称'].unique()
+            for unit in units:
+                unit_df = df[df['用工单位名称'] == unit]
+                add_table_to_data(unit_df, f"1-2 表格：{unit}")
+            
+            # 3. 将数据转为 DataFrame 并生成 Excel 文件流
             result_df = pd.DataFrame(output_data)
             excel_buffer = io.BytesIO()
             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                # header=False 防止输出 DataFrame 原本的英文列名
                 result_df.to_excel(writer, index=False, header=False)
+            # 👇 新增：自动保存结果文件（存入 option_2/result 目录）
+            cloud_storage.upload_bytes_to_supabase(
+                excel_buffer.getvalue(), 
+                file_name="月报表统计结果.xlsx", 
+                folder="option_2/result"
+            )
             
-            excel_bytes = excel_buffer.getvalue()
-
-            c1, c2 = st.columns(2)
-            with c1:
-                st.download_button("📥 点击下载统计结果 Excel", data=excel_bytes, file_name="月报表统计结果.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-            with c2:
-                if st.button("☁️ 一键保存月报表至云端 (Supabase)", use_container_width=True):
-                    res_url = cloud_storage.upload_bytes_to_supabase(excel_bytes, "月报表统计结果.xlsx")
-                    if res_url and res_url.startswith("http"):
-                        st.success("🎉 月报表已成功安全存入 Supabase 云端！")
-                        st.markdown(f"📥 **[点击直接下载云端月报表]({res_url})**")
-                    else:
-                        st.error("云端保存失败。")
+            # 网页下载按钮
+            st.download_button(
+                label="📥 点击下载统计结果 Excel",
+                data=excel_buffer.getvalue(),
+                file_name="月报表统计结果.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            
         except Exception as e:
             st.error(f"处理文件时出错，请检查是否包含所需列！错误信息: {e}")
-
-    # 完整保留姐姐的示例展示区
+    # 👇 新增：底部增加折叠框，用来查看和下载以前生成过的 Excel 分析结果历史
+    result_cloud_files = cloud_storage.list_supabase_files(folder="option_2/result")
+    if result_cloud_files:
+        with st.expander("📜 查看/下载以前自动保存过的云端 Excel 结果", expanded=False):
+            for res_file in result_cloud_files:
+                col_name, col_btn, col_del = st.columns([5, 2, 3])
+                with col_name:
+                    st.write(f"📄 {res_file['display_name']}")
+                with col_btn:
+                    st.markdown(f"📥 **[点击下载]({res_file['download_url']})**")
+                with col_del:
+                    if st.checkbox("确认删除?", key=f"chk_{res_file['path']}"):
+                        if st.button("🗑️ 永久删除", key=f"del_{res_file['path']}"):
+                            cloud_storage.delete_supabase_file(res_file["path"])
+                            st.rerun()
+    # 增加的示例展示区
     st.divider()
     st.subheader("💡 填写示例与说明")
     st.write("上传的表格格式示例：")
+    
+    # 表格示例
     example_df = pd.DataFrame({
-        "用工单位名称": ["中国铁路郑州局集团有限公司月山工务段", "华润电力焦作有限公司", "中国铁路郑州局集团有限公司郑州东高铁基础设施段", "河南平原光电有限公司"],
-        "体检危害因素名称": ["噪声", "煤尘（游离 SiO2 含量＜10%）,噪声", "矽尘,噪声", "其他粉尘,乙醚,丙酮"]
+        "用工单位名称": [
+            "中国铁路郑州局集团有限公司月山工务段",
+            "华润电力焦作有限公司",
+            "中国铁路郑州局集团有限公司郑州东高铁基础设施段",
+            "河南平原光电有限公司"
+        ],
+        "体检危害因素名称": [
+            "噪声",
+            "煤尘（游离 SiO2 含量＜10%）,噪声",
+            "矽尘,噪声",
+            "其他粉尘,乙醚,丙酮"
+        ]
     })
     st.dataframe(example_df, use_container_width=True)
     
@@ -140,4 +183,8 @@ def render_page(smart_read_uploaded_file):
             "73", "2", "0", "0"
         ]
     })
-    st.dataframe(summary_df, use_container_width=True)
+    st.dataframe(detail_df, use_container_width=True)
+    
+
+    # 图片示例（将示例图片命名为 example.jpg 放入同文件夹，去掉下一行的 # 即可显示）
+    # st.image("example.jpg", caption="Excel截图示例", use_container_width=True)
