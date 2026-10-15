@@ -50,9 +50,11 @@ def render_page(smart_read_uploaded_file):
         else:
             st.info("☁️ 云端暂无备份的原始表格，请先从本地上传~")
     if file_to_process is not None:
-        try:
-            df = smart_read_uploaded_file(file_to_process)
-            df.columns = df.columns.str.strip()
+        # 🌟 新增：增加手动开始按钮，点一下才开始处理！
+        if st.button("🚀 开始分析 Excel 异常检出率", use_container_width=True):
+            try:
+                df = smart_read_uploaded_file(file_to_process)
+                df.columns = df.columns.str.strip()
             with st.expander(" 点击展开预览 Excel 表格内容", expanded=True):
                 st.dataframe(df.head(10), use_container_width=True)
             

@@ -37,23 +37,16 @@ def upload_bytes_to_supabase(
   if client is not None:
     try:
       import re
+      import random
       from datetime import datetime
 
-      # 🌟 1. 尝试将中文文件名转为拼音
+      # 🌟 放弃不稳定的拼音库，直接用纯数字时间戳+随机数安全命名，防止任何乱码和覆盖！
+      # 但是请姐姐放心，这个乱码只是存在云端的“真实名字”，在网页展示给你的依然是你原本的中文名！
       name_part, ext_part = os.path.splitext(file_name)
-      try:
-          import pypinyin
-          name_part = ''.join(pypinyin.lazy_pinyin(name_part))
-      except Exception:
-          pass
-
-      # 🌟 2. 清理特殊字符，并加上“时分秒”时间戳，彻底防止云端同名覆盖！
-      safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', name_part)
-      time_str = datetime.now().strftime("%H%M%S") # 获取当前时分秒
+      time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+      rand_str = str(random.randint(1000, 9999))
       
-      safe_file_name = (
-          f"{safe_name}_{time_str}{ext_part}" if safe_name else f"file_{time_str}{ext_part}"
-      )
+      safe_file_name = f"doc_{time_str}_{rand_str}{ext_part}"
       full_path = f"{folder}/{safe_file_name}"
 
       client.storage.from_(bucket_name).upload(

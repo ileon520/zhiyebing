@@ -46,9 +46,11 @@ def render_page(smart_read_uploaded_file):
             st.info("☁️ 云端暂无备份的原始表格，请先从本地上传~")
 
     if file_to_process is not None:
-        try:
-            df = smart_read_uploaded_file(file_to_process)
-            df = df.dropna(subset=['用工单位名称', '体检危害因素名称'])
+        # 🌟 新增：增加手动开始按钮，点一下才开始统计！
+        if st.button("🚀 开始生成疾控月报表", use_container_width=True):
+            try:
+                df = smart_read_uploaded_file(file_to_process)
+                df = df.dropna(subset=['用工单位名称', '体检危害因素名称'])
             
             # 显示读取成功提示
             unit_count = len(df['用工单位名称'].unique())
