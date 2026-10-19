@@ -184,6 +184,13 @@ APP_OPTIONS = [
         "tags": ["#图片", "#表情包", "#花样加字"], 
         "desc": "选择预设荷花/鲜花背景图，一键制作喜庆中老年发光大字表情包"
     }
+    
+    # 👇 下面这几行是这次给姐姐加的选项 5：
+    {
+        "name": " 🏥 选项 5：专家名单自动更新", 
+        "tags": ["#专家名片", "#通讯录更新", "#AI处理"], 
+        "desc": "自动核对并更新指定列的专家姓名与电话，生成修改备注"
+    }
 ]
 
 # -----------------------------------------------------------------------------
@@ -252,4 +259,8 @@ elif menu_choice == " 选项 3：报告书表格生成":
 # --- 🌸 选项 4 界面 ---
 elif menu_choice == " 🌸 选项 4：中老年表情包制作":
     import option_image
-    option_image.render_page()                    
+    option_image.render_page()    
+# --- 🏥 选项 5 界面 ---
+elif menu_choice == " 🏥 选项 5：专家名单自动更新":
+    import option_5
+    option_5.render_page(smart_read_uploaded_file, API_CONFIGS, check_network_environment, call_ai_api)
